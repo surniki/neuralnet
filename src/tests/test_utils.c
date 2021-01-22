@@ -43,7 +43,7 @@ int test_main(const struct test_entry *tests)
 	}
 
 	size_t max_status_len = max(strlen(passed_msg), strlen(failed_msg));
-	size_t print_width = max_name_length + space_width + max_status_len;
+	size_t print_width = max_name_length + space_width + max_status_len + 1;
 	
 	printf("Running %d tests:\n", test_count);
 	println_row('-', print_width);
@@ -204,7 +204,7 @@ void debug_entry_point(FILE *file)
     }
 }
 
-size_t current_number_of_allocations()
+size_t current_number_of_allocations(void)
 {
     return allocinfo_length(allocations);
 }
