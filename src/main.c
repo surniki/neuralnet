@@ -1,4 +1,5 @@
 
+#include <stdio.h>
 #include "headers/neuron.h"
 
 const struct neuron_profile neuron_profile_tonic = {
@@ -14,7 +15,7 @@ const struct neuron_profile neuron_profile_tonic = {
 	.g_sd = 0.25,
 	.V_sd = 50,
 	.g_sr = 0.25,
-	.v_sr = -90.0,
+	.V_sr = -90.0,
 	.s_Na = 0.25,
 	.V_0Na = -25.0,
 	.phi = 0.124,
@@ -42,7 +43,7 @@ const struct neuron_profile neuron_profile_bursting = {
 	.g_sd = 0.25,
 	.V_sd = 50,
 	.g_sr = 0.45,
-	.v_sr = -90.0,
+	.V_sr = -90.0,
 	.s_Na = 0.25,
 	.V_0Na = -25.0,
 	.phi = 0.124,
@@ -57,28 +58,8 @@ const struct neuron_profile neuron_profile_bursting = {
 	.V_0sd = -40.0
 };
 
-void coupling_relation_lattice(uint i, uint size, uint *values)
-{
-	
-}
-
-void neuron_init_swp(uint i, uint w, uint h, struct neuron *n)
-{
-
-}
-
 int main(void)
 {
-	neural_network ns = neural_network_create(10, 10,
-						  &coupling_relation_lattice,
-						  &neuron_init_swp,
-						  "nn_output");
-
-	for (int i = 0; i < 1000; i++) {
-		neural_network_integrate(ns, 0.01);
-		neural_network_print(ns);
-	}
-	
-	neural_network_destroy(&ns);
+	puts("neuralnet running");
 	return 0;
 }
