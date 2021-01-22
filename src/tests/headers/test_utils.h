@@ -16,7 +16,7 @@ void *malloc_for_debugging(size_t size, int line, const char *filename);
 void *calloc_for_debugging(size_t quantity, size_t size, int line, const char *filename);
 void *realloc_for_debugging(void *ptr, size_t size, int line, const char *filename);
 void free_for_debugging(void *ptr);
-size_t current_number_of_allocations();
+size_t current_number_of_allocations(void);
 #define malloc(size) malloc_for_debugging((size), __LINE__, __FILE__)
 #define calloc(quantity, size) calloc_for_debugging((quantity), (size), __LINE__, __FILE__)
 #define realloc(ptr, new_size) realloc_for_debugging((ptr), (new_size), __LINE__, __FILE__)
