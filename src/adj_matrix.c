@@ -27,9 +27,15 @@ adj_matrix adj_matrix_create(uint node_count)
 void adj_matrix_set_complete(adj_matrix am, double cf)
 {
 	assert(am);
-	const uint element_count = am->node_count * am->node_count;
-	for (int i = 0; i < element_count; i++) {
-		am->couplings[i] = cf;
+	for (uint row = 0; row < am->node_count; row++) {
+		for (uint col = 0; col < am->node_count; col++) {
+			if (row == col) {
+				am->couplings[row * am->node_count + col] = 0.0;
+			}
+			else {
+				am->couplings[row * am->node_count + col] = cf;
+			}
+		}
 	}
 }
 
@@ -76,10 +82,17 @@ void adj_matrix_set_custom(adj_matrix am, double (*element_setter)(uint size, ui
 
 double adj_matrix_get(adj_matrix am, uint row, uint col)
 {
+	assert(am);
 	assert(row < am->node_count);
 	assert(col < am->node_count);
 
 	return am->couplings[row * am->node_count + col];
+}
+
+uint adj_matrix_get_node_count(adj_matrix am)
+{
+	assert(am);
+	return am->node_count;
 }
 
 void adj_matrix_destroy(adj_matrix *am)

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <string.h>
+#include <assert.h>
 #include "headers/deftypes.h"
 #include "headers/neuron.h"
 #include "headers/file_array.h"
@@ -11,15 +12,78 @@
 
 struct neural_network {
 	uint count;
+	double time;
 	adj_matrix adj_matrix;
-	file_array files;
-	struct neuron neurons[];
+	struct neuron_profile **profiles;
+	double *V, *a_K, *a_sd, *a_sr;
+	double *k1_V, *k1_a_K, *k1_a_sd, *k1_a_sr;
+	double *k2_V, *k2_a_K, *k2_a_sd, *k2_a_sr;
+	double *k3_V, *k3_a_K, *k3_a_sd, *k3_a_sr;
+	double *k4_V, *k4_a_K, *k4_a_sd, *k4_a_sr;
 };
 
-static double neuron_dV_wrt_dt(const struct neuron_profile *nrn,
-			       double V, double a_K, double a_sd, double a_sr,
-			       double I_coupling)
+static double neuron_dV_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)
 {
+	assert("Given index must be a valid number in the range [0, count)."
+	       && index >= 0
+	       && index < ns->count);
+
+	const struct neuron_profile *nrn = ns->profiles[index];
+	double V = ns->V[index];
+	double a_K = ns->a_K[index];
+	double a_sd = ns->a_sd[index];
+	double a_sr = ns->a_sr[index];
+
+	switch (k_number) {
+	case RK4_K_1:
+		break;
+	case RK4_K_2:
+		V    += ns->k1_V[index] / 2.0;
+		a_K  += ns->k1_a_K[index] / 2.0;
+		a_sd += ns->k1_a_sd[index] / 2.0;
+		a_sr += ns->k1_a_sr[index] / 2.0;
+		break;
+	case RK4_K_3:
+		V    += ns->k2_V[index] / 2.0;
+		a_K  += ns->k2_a_K[index] / 2.0;
+		a_sd += ns->k2_a_sd[index] / 2.0;
+		a_sr += ns->k2_a_sr[index] / 2.0;
+		break;
+	case RK4_K_4:
+		V    += ns->k3_V[index];
+		a_K  += ns->k3_a_K[index];
+		a_sd += ns->k3_a_sd[index];
+		a_sr += ns->k3_a_sr[index];
+		break;
+	default:
+		assert(!"Unsupported k_number used as argument.");
+		break;
+	}
+	
+	double I_coupling = 0.0;	
+	for (uint col = 0; col < adj_matrix_get_node_count(ns->adj_matrix); col++) {
+		double g_c = adj_matrix_get(ns->adj_matrix, index, col);
+		if (g_c != 0.0) {	
+			double coupled_V = ns->V[col];
+			switch (k_number) {
+			case RK4_K_1:
+				break;
+			case RK4_K_2:
+				coupled_V += ns->k1_V[col] / 2.0;
+				break;
+			case RK4_K_3:
+				coupled_V += ns->k2_V[col] / 2.0;
+				break;
+			case RK4_K_4:
+				coupled_V += ns->k3_V[col];
+				break;
+			default:
+				assert(!"Unsupported k_number used as argument.");
+				break;
+			}
+			I_coupling += g_c * (V - coupled_V);
+		}
+	}
 
 	const double I_leak = nrn->g_leak * (V - nrn->V_leak);
 	const double a_Na   = 1.0 / (1.0 + exp(-nrn->s_Na * (V - nrn->V_0Na)));
@@ -32,41 +96,171 @@ static double neuron_dV_wrt_dt(const struct neuron_profile *nrn,
 	return -(I_leak + I_Na + I_K + I_sd + I_sr + nrn->I_inj + I_coupling) / nrn->C;
 }
 
-static double neuron_da_K_wrt_dt(const struct neuron_profile *nrn,
-				 double V, double a_K)
+static double neuron_da_K_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)
 {
+	assert("Given index must be a valid number in the range [0, count)."
+	       && index >= 0
+	       && index < ns->count);
+
+	const struct neuron_profile *nrn = ns->profiles[index];
+	double V = ns->V[index];
+	double a_K = ns->a_K[index];
+	double a_sd = ns->a_sd[index];
+	double a_sr = ns->a_sr[index];
+
+	switch (k_number) {
+	case RK4_K_1:
+		break;
+	case RK4_K_2:
+		V    += ns->k1_V[index] / 2.0;
+		a_K  += ns->k1_a_K[index] / 2.0;
+		a_sd += ns->k1_a_sd[index] / 2.0;
+		a_sr += ns->k1_a_sr[index] / 2.0;
+		break;
+	case RK4_K_3:
+		V    += ns->k2_V[index] / 2.0;
+		a_K  += ns->k2_a_K[index] / 2.0;
+		a_sd += ns->k2_a_sd[index] / 2.0;
+		a_sr += ns->k2_a_sr[index] / 2.0;
+		break;
+	case RK4_K_4:
+		V    += ns->k3_V[index];
+		a_K  += ns->k3_a_K[index];
+		a_sd += ns->k3_a_sd[index];
+		a_sr += ns->k3_a_sr[index];
+		break;
+	default:
+		assert(!"Unsupported k_number used as argument.");
+		break;
+	}
+	
 	const double a_K_inf = 1.0 / (1.0 + exp(-nrn->s_K * (V - nrn->V_0K)));
 	return (nrn->phi / nrn->tau_K) * (a_K_inf - a_K);
 }
 
-static double neuron_da_sd_wrt_dt(const struct neuron_profile *nrn,
-				  double V, double a_sd)
+static double neuron_da_sd_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)
 {
-	const double a_sd_inf = 1.0 / (1.0 + exp(-nrn->s_sd * (V - nrn->V_0K)));
+	assert("Given index must be a valid number in the range [0, count)."
+	       && index >= 0
+	       && index < ns->count);
+
+	const struct neuron_profile *nrn = ns->profiles[index];
+	double V = ns->V[index];
+	double a_K = ns->a_K[index];
+	double a_sd = ns->a_sd[index];
+	double a_sr = ns->a_sr[index];
+
+	switch (k_number) {
+	case RK4_K_1:
+		break;
+	case RK4_K_2:
+		V    += ns->k1_V[index] / 2.0;
+		a_K  += ns->k1_a_K[index] / 2.0;
+		a_sd += ns->k1_a_sd[index] / 2.0;
+		a_sr += ns->k1_a_sr[index] / 2.0;
+		break;
+	case RK4_K_3:
+		V    += ns->k2_V[index] / 2.0;
+		a_K  += ns->k2_a_K[index] / 2.0;
+		a_sd += ns->k2_a_sd[index] / 2.0;
+		a_sr += ns->k2_a_sr[index] / 2.0;
+		break;
+	case RK4_K_4:
+		V    += ns->k3_V[index];
+		a_K  += ns->k3_a_K[index];
+		a_sd += ns->k3_a_sd[index];
+		a_sr += ns->k3_a_sr[index];
+		break;
+	default:
+		assert(!"Unsupported k_number used as argument.");
+		break;
+	}
+
+	const double a_sd_inf = 1.0 / (1.0 + exp(-nrn->s_sd * (V - nrn->V_0sd)));
 	return (nrn->phi / nrn->tau_sd) * (a_sd_inf - a_sd);
 }
 
-static double neuron_da_sr_wrt_dt(const struct neuron_profile *nrn,
-				  double V, double a_sd, double a_sr)
+static double neuron_da_sr_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)
 {
+	assert("Given index must be a valid number in the range [0, count)."
+	       && index >= 0
+	       && index < ns->count);
+
+	const struct neuron_profile *nrn = ns->profiles[index];
+	double V = ns->V[index];
+	double a_K = ns->a_K[index];
+	double a_sd = ns->a_sd[index];
+	double a_sr = ns->a_sr[index];
+
+	switch (k_number) {
+	case RK4_K_1:
+		break;
+	case RK4_K_2:
+		V    += ns->k1_V[index] / 2.0;
+		a_K  += ns->k1_a_K[index] / 2.0;
+		a_sd += ns->k1_a_sd[index] / 2.0;
+		a_sr += ns->k1_a_sr[index] / 2.0;
+		break;
+	case RK4_K_3:
+		V    += ns->k2_V[index] / 2.0;
+		a_K  += ns->k2_a_K[index] / 2.0;
+		a_sd += ns->k2_a_sd[index] / 2.0;
+		a_sr += ns->k2_a_sr[index] / 2.0;
+		break;
+	case RK4_K_4:
+		V    += ns->k3_V[index];
+		a_K  += ns->k3_a_K[index];
+		a_sd += ns->k3_a_sd[index];
+		a_sr += ns->k3_a_sr[index];
+		break;
+	default:
+		assert(!"Unsupported k_number used as argument.");
+		break;
+	}
+	
 	const double I_sd = nrn->rho * nrn->g_sd * a_sd * (V - nrn->V_sd);
 	return -(nrn->phi / nrn->tau_sr) * (nrn->v_acc * I_sd + nrn->v_dep * a_sr);
 }
 
-neural_network neural_network_create(uint width,
-				     uint height,
-				     void (*neuron_init)(uint i, uint w, uint h, struct neuron *n),
-				     adj_matrix (*adj_matrix_init)(uint node_count))
+neural_network neural_network_create(uint count,
+				     void (*neuron_init)(uint i, uint count,
+							 double *V, double *a_K, double *a_sd, double *a_sr,
+							 struct neuron_profile **np),
+				     adj_matrix am)
 {
-	size_t size = sizeof (struct neural_network) + sizeof (struct neuron) * width * height;
-	neural_network result = malloc(size);
-	memset(result, 0, size);
+	neural_network result = malloc(sizeof *result);
+	
+	result->V        = malloc(sizeof (double) * count);
+	result->a_K      = malloc(sizeof (double) * count);
+	result->a_sd     = malloc(sizeof (double) * count);
+	result->a_sr     = malloc(sizeof (double) * count);
+	result->k1_V     = malloc(sizeof (double) * count);
+	result->k1_a_K   = malloc(sizeof (double) * count);
+	result->k1_a_sd  = malloc(sizeof (double) * count);
+	result->k1_a_sr  = malloc(sizeof (double) * count);
+	result->k2_V     = malloc(sizeof (double) * count);
+	result->k2_a_K   = malloc(sizeof (double) * count);
+	result->k2_a_sd  = malloc(sizeof (double) * count);
+	result->k2_a_sr  = malloc(sizeof (double) * count);
+	result->k3_V     = malloc(sizeof (double) * count);
+	result->k3_a_K   = malloc(sizeof (double) * count);
+	result->k3_a_sd  = malloc(sizeof (double) * count);
+	result->k3_a_sr  = malloc(sizeof (double) * count);
+	result->k4_V     = malloc(sizeof (double) * count);
+	result->k4_a_K   = malloc(sizeof (double) * count);
+	result->k4_a_sd  = malloc(sizeof (double) * count);
+	result->k4_a_sr  = malloc(sizeof (double) * count);
 
-	result->count = width * height;
-	result->adj_matrix = adj_matrix_init(width * height);
-	result->files = file_array_create(width * height, "output");
-	for (uint i = 0; i < width * height; i++) {
-		neuron_init(i, width, height, result->neurons + i);
+	result->profiles = malloc((sizeof *(result->profiles)) * count);
+	
+	result->count = count;
+	result->time = 0.0;
+	result->adj_matrix = am;
+	
+	for (uint i = 0; i < count; i++) {
+		neuron_init(i, count,
+			    &result->V[i], &result->a_K[i], &result->a_sd[i], &result->a_sr[i],
+			    &result->profiles[i]);
 	}
 	
 	return result;
@@ -75,123 +269,95 @@ neural_network neural_network_create(uint width,
 void neural_network_integrate(neural_network ns, double time_step)
 {	
 	for (uint i = 0; i < ns->count; i++) {
-		struct neuron *n = ns->neurons + i;
-		n->prev_V = n->V;
-		n->prev_a_K = n->a_K;
-		n->prev_a_sd = n->a_sd;
-		n->prev_a_sr = n->a_sr;
+		ns->k1_V[i]    = time_step * neuron_dV_wrt_dt(ns, i, RK4_K_1);
+		ns->k1_a_K[i]  = time_step * neuron_da_K_wrt_dt(ns, i, RK4_K_1);
+		ns->k1_a_sd[i] = time_step * neuron_da_sd_wrt_dt(ns, i, RK4_K_1);
+		ns->k1_a_sr[i] = time_step * neuron_da_sr_wrt_dt(ns, i, RK4_K_1);
 	}
 
 	for (uint i = 0; i < ns->count; i++) {
-		#define I_V     0
-		#define I_A_K   1
-		#define I_A_SD  2
-		#define I_A_SR  3
-
-
-		struct neuron *n = ns->neurons + i;
-		const double V = n->prev_V;
-		const double a_K = n->prev_a_K;
-		const double a_sd = n->prev_a_sd;
-		const double a_sr = n->prev_a_sr;
-
-		/* TODO: I_coupling needs to reflect the increments made in k1 .. k4 */
-		uint c_index;
-		double g_c;
-		double I_coupling = 0;
-
-		#if 0
-		while (g_c = adj_matrix_poll_for_indices(ns->adj_matrix, i, &c_index)) {
-			struct neuron *coupled_n = ns->neurons + c_index;
-			const double coupled_V = coupled_n->prev_V;
-			I_coupling += g_c * (V - coupled_V);
-		}
-		#endif
-		
-		double k1[] = {0.0, 0.0, 0.0, 0.0};
-		double k2[] = {0.0, 0.0, 0.0, 0.0};
-		double k3[] = {0.0, 0.0, 0.0, 0.0};
-		double k4[] = {0.0, 0.0, 0.0, 0.0};
-
-		k1[I_V]    = time_step * neuron_dV_wrt_dt(n->profile, V, a_K, a_sd, a_sr, I_coupling);
-		k1[I_A_K]  = time_step * neuron_da_K_wrt_dt(n->profile, V, a_K);
-		k1[I_A_SD] = time_step * neuron_da_sd_wrt_dt(n->profile, V, a_sd);
-		k1[I_A_SR] = time_step * neuron_da_sr_wrt_dt(n->profile, V, a_sd, a_sr);
-
-		k2[I_V]    = time_step * neuron_dV_wrt_dt(n->profile,
-							  V + k1[I_V] / 2.0,
-							  a_K + k1[I_A_K] / 2.0,
-							  a_sd + k1[I_A_SD] / 2.0,
-							  a_sr + k1[I_A_SR] / 2.0,
-							  I_coupling);
-		k2[I_A_K]  = time_step * neuron_da_K_wrt_dt(n->profile,
-							    k1[I_V] / 2.0,
-							    k1[I_A_K] / 2.0);
-		k2[I_A_SD] = time_step * neuron_da_sd_wrt_dt(n->profile,
-							     k1[I_V] / 2.0,
-							     k1[I_A_SD] / 2.0);
-		k2[I_A_SR] = time_step * neuron_da_sr_wrt_dt(n->profile,
-							     k1[I_V] / 2.0,
-							     k1[I_A_SD] / 2.0,
-							     k1[I_A_SR] / 2.0);
-
-		k3[I_V]    = time_step * neuron_dV_wrt_dt(n->profile,
-							  k2[I_V] / 2.0,
-							  k2[I_A_K] / 2.0,
-							  k2[I_A_SD] / 2.0,
-							  k2[I_A_SR] / 2.0,
-							  I_coupling);
-		k3[I_A_K]  = time_step * neuron_da_K_wrt_dt(n->profile,
-							    k2[I_V] / 2.0,
-							    k2[I_A_K] / 2.0);
-		k3[I_A_SD] = time_step * neuron_da_sd_wrt_dt(n->profile,
-							     k2[I_V] / 2.0,
-							     k2[I_A_SD] / 2.0);
-		k3[I_A_SR] = time_step * neuron_da_sr_wrt_dt(n->profile,
-							     k2[I_V] / 2.0,
-							     k2[I_A_SD] / 2.0,
-							     k2[I_A_SR] / 2.0);
-
-		k4[I_V]    = time_step * neuron_dV_wrt_dt(n->profile,
-							  k3[I_V],
-							  k3[I_A_K],
-							  k3[I_A_SD],
-							  k3[I_A_SR],
-							  I_coupling);
-		k4[I_A_K]  = time_step * neuron_da_K_wrt_dt(n->profile,
-							    k3[I_V],
-							    k3[I_A_K]);
-		k4[I_A_SD] = time_step * neuron_da_sd_wrt_dt(n->profile,
-							     k3[I_V],
-							     k3[I_A_SD]);
-		k4[I_A_SR] = time_step * neuron_da_sr_wrt_dt(n->profile,
-							     k3[I_V],
-							     k3[I_A_SD],
-							     k3[I_A_SR]);
-
-		n->V = V + k1[I_V] / 6.0 + k2[I_V] / 3.0 + k3[I_V] / 3.0 + k4[I_V] / 6.0;
-		n->a_K = a_K + k1[I_A_K] / 6.0 + k2[I_A_K] / 3.0 + k3[I_A_K] / 3.0 + k4[I_A_K] / 6.0;
-		n->a_sd = V + k1[I_A_SD] / 6.0 + k2[I_A_SD] / 3.0 + k3[I_A_SD] / 3.0 + k4[I_A_SD] / 6.0;
-		n->a_sr = V + k1[I_A_SR] / 6.0 + k2[I_A_SR] / 3.0 + k3[I_A_SR] / 3.0 + k4[I_A_SR] / 6.0;
-		#undef I_V
-		#undef I_A_K
-		#undef I_A_SD
-		#undef I_A_SR
+		ns->k2_V[i]    = time_step * neuron_dV_wrt_dt(ns, i, RK4_K_2);
+		ns->k2_a_K[i]  = time_step * neuron_da_K_wrt_dt(ns, i, RK4_K_2);
+		ns->k2_a_sd[i] = time_step * neuron_da_sd_wrt_dt(ns, i, RK4_K_2);
+		ns->k2_a_sr[i] = time_step * neuron_da_sr_wrt_dt(ns, i, RK4_K_2);
 	}
+
+	for (uint i = 0; i < ns->count; i++) {
+		ns->k3_V[i]    = time_step * neuron_dV_wrt_dt(ns, i, RK4_K_3);
+		ns->k3_a_K[i]  = time_step * neuron_da_K_wrt_dt(ns, i, RK4_K_3);
+		ns->k3_a_sd[i] = time_step * neuron_da_sd_wrt_dt(ns, i, RK4_K_3);
+		ns->k3_a_sr[i] = time_step * neuron_da_sr_wrt_dt(ns, i, RK4_K_3);
+	}
+
+	for (uint i = 0; i < ns->count; i++) {
+		ns->k4_V[i]    = time_step * neuron_dV_wrt_dt(ns, i, RK4_K_4);
+		ns->k4_a_K[i]  = time_step * neuron_da_K_wrt_dt(ns, i, RK4_K_4);
+		ns->k4_a_sd[i] = time_step * neuron_da_sd_wrt_dt(ns, i, RK4_K_4);
+		ns->k4_a_sr[i] = time_step * neuron_da_sr_wrt_dt(ns, i, RK4_K_4);
+	}
+	
+	for (uint i = 0; i < ns->count; i++) {
+		ns->V[i]    += ns->k1_V[i]/6.0    + ns->k2_V[i]/3.0    + ns->k3_V[i]/3.0    + ns->k4_V[i]/6.0;
+		ns->a_K[i]  += ns->k1_a_K[i]/6.0  + ns->k2_a_K[i]/3.0  + ns->k3_a_K[i]/3.0  + ns->k4_a_K[i]/6.0;
+		ns->a_sd[i] += ns->k1_a_sd[i]/6.0 + ns->k2_a_sd[i]/3.0 + ns->k3_a_sd[i]/3.0 + ns->k4_a_sd[i]/6.0;
+		ns->a_sr[i] += ns->k1_a_sr[i]/6.0 + ns->k2_a_sr[i]/3.0 + ns->k3_a_sr[i]/3.0 + ns->k4_a_sr[i]/6.0;
+	}
+
+	ns->time += time_step;
 }
 
-void neural_network_print(neural_network ns)
+double neural_network_get_V(const neural_network ns, uint index)
 {
-	for (uint i = 0; i < ns->count; i++) {
-		struct neuron *n = ns->neurons + i;
-		file_array_print(ns->files, i, "%4.3e %4.3e %4.3e %4.3e\n", n->V, n->a_K, n->a_sd, n->a_sr);
-	}
+	return ns->V[index];
+}
+
+double neural_network_get_a_K(const neural_network ns, uint index)
+{
+	return ns->a_K[index];
+}
+
+double neural_network_get_a_sd(const neural_network ns, uint index)
+{
+	return ns->a_sd[index];
+}
+
+double neural_network_get_a_sr(const neural_network ns, uint index)
+{
+	return ns->a_sr[index];
+}
+
+double neural_network_get_time(const neural_network ns)
+{
+	return ns->time;
+}
+
+uint neural_network_get_count(const neural_network ns)
+{
+	return ns->count;
 }
 
 void neural_network_destroy(neural_network *ns)
 {
-	adj_matrix_destroy(&(*ns)->adj_matrix);
-	file_array_destroy(&(*ns)->files);
+	free((*ns)->V);
+	free((*ns)->a_K);
+	free((*ns)->a_sd);
+	free((*ns)->a_sr);
+	free((*ns)->k1_V);
+	free((*ns)->k1_a_K);
+	free((*ns)->k1_a_sd);
+	free((*ns)->k1_a_sr);
+	free((*ns)->k2_V);
+	free((*ns)->k2_a_K);
+	free((*ns)->k2_a_sd);
+	free((*ns)->k2_a_sr);
+	free((*ns)->k3_V);
+	free((*ns)->k3_a_K);
+	free((*ns)->k3_a_sd);
+	free((*ns)->k3_a_sr);
+	free((*ns)->k4_V);
+	free((*ns)->k4_a_K);
+	free((*ns)->k4_a_sd);
+	free((*ns)->k4_a_sr);
 	free(*ns);
 	*ns = NULL;
 }

@@ -64,7 +64,10 @@ bool test_adj_matrix_set_complete(void)
 	bool test_2 = true;
 	for (uint row = 0; row < 20; row++) {
 		for (uint col = 0; col < 20; col++) {
-			test_2 = test_2 && adj_matrix_get(am, row, col) == 1.0;
+			if (row == col)
+				test_2 = test_2 && adj_matrix_get(am, row, col) == 0.0;
+			else
+				test_2 = test_2 && adj_matrix_get(am, row, col) == 1.0;
 		}
 	}
 
@@ -72,7 +75,10 @@ bool test_adj_matrix_set_complete(void)
 	bool test_3 = true;
 	for (uint row = 0; row < 20; row++) {
 		for (uint col = 0; col < 20; col++) {
-			test_3 = test_3 && adj_matrix_get(am, row, col) == 0.5;
+			if (row == col)
+				test_3 = test_3 && adj_matrix_get(am, row, col) == 0.0;
+			else
+				test_3 = test_3 && adj_matrix_get(am, row, col) == 0.5;
 		}
 	}
 
@@ -262,7 +268,7 @@ double test_custom_setter(uint size, uint row, uint col)
 }
 
 bool test_adj_matrix_set_custom(void)
-{
+{	
 	bool test_1 = true;
 	adj_matrix am = adj_matrix_create(1);
 	adj_matrix_set_custom(am, &test_custom_setter);
