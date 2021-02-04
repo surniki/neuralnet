@@ -13,7 +13,7 @@ struct neuron_profile tonic_profile = {
 	.C = 1.0,
 	.g_leak = 0.1,
 	.V_leak = -60.0,
-	.rho = 0.675,
+	.rho = 0.607,
 	.g_Na = 1.5,
 	.V_Na = 50.0,
 	.g_K = 2.0,
@@ -24,7 +24,7 @@ struct neuron_profile tonic_profile = {
 	.V_sr = -90.0,
 	.s_Na = 0.25,
 	.V_0Na = -25.0,
-	.phi = 0.192,
+	.phi = 0.124,
 	.tau_K = 2.0,
 	.tau_sd = 10.0,
 	.tau_sr = 20.0,
@@ -37,22 +37,22 @@ struct neuron_profile tonic_profile = {
 };
 
 struct neuron_profile bursting_profile = {
-	.I_inj = -20.0,
+	.I_inj = 1.0,
 	.C = 1.0,
 	.g_leak = 0.1,
 	.V_leak = -60.0,
-	.rho = 0.675,
+	.rho = 0.607,
 	.g_Na = 1.5,
 	.V_Na = 50.0,
 	.g_K = 2.0,
 	.V_K = -90.0,
 	.g_sd = 0.25,
 	.V_sd = 50.0,
-	.g_sr = 0.25,
+	.g_sr = 0.45,
 	.V_sr = -90.0,
 	.s_Na = 0.25,
 	.V_0Na = -25.0,
-	.phi = 0.192,
+	.phi = 0.124,
 	.tau_K = 2.0,
 	.tau_sd = 10.0,
 	.tau_sr = 20.0,
@@ -64,45 +64,44 @@ struct neuron_profile bursting_profile = {
 	.V_0sd = -40.0
 };
 
-void neuron_init_callback(uint i, uint count,
-			  double *V, double *a_K, double *a_sd, double *a_sr,
-			  struct neuron_profile **np)
+static void neuron_init_callback(uint i, uint count,
+				 double *V, double *a_K, double *a_sd, double *a_sr,
+				 struct neuron_profile **np)
 {
-	uint side_len = round(sqrt(count));
-	uint row = round(side_len / 2.0);
-	uint lcol = round(side_len * (1.0 / 4.0));
-	uint rcol = round(side_len * (3.0 / 4.0));
-
-	if (i == row * side_len + lcol || i == row * side_len + rcol) {
+	if (i == 0)
 		*np = &bursting_profile;
-	}
-	else {
+	else
 		*np = &tonic_profile;
-	}
-
+	
 	*V    = 0.0;
 	*a_K  = 0.5;
 	*a_sd = 0.5;
 	*a_sr = 0.5;
 }
 
+static double element_setter_callback(uint size, uint row, uint col)
+{
+	if (row == col - 1 || row - 1 == col)
+		return 0.0;
+	else
+		return 0.0;
+}
+
 int main(void)
 {
-	const uint lattice_width = 10;
-	const uint lattice_height = 10;
-	const uint neuron_count = lattice_width * lattice_height;
+	const uint neuron_count = 4;
 	const double time_step = 0.01;
-	const double final_time = 1000;
+	const double final_time = 5000;
 	const double progress_print_interval = 1.0;
-	
-	file_array fs = file_array_create(neuron_count + 1, "output");
+
+	file_array fs = file_array_create(neuron_count, "output");
 	if (!fs) {
 		puts("Fatal error: Could not create the file array.");
 		return 0;
 	}
 
 	adj_matrix am = adj_matrix_create(neuron_count);
-	adj_matrix_set_lattice(am, lattice_width, lattice_height, 0.2);	
+	adj_matrix_set_custom(am, &element_setter_callback);
 	neural_network ns = neural_network_create(neuron_count, &neuron_init_callback, am);
 
 	timer timer = timer_begin();
@@ -121,15 +120,7 @@ int main(void)
 					 neural_network_get_a_sd(ns, i),
 					 neural_network_get_a_sr(ns, i));
 		}
-		for (uint row = 0; row < lattice_height; row++) {
-			for (uint col = 0; col < lattice_width; col++) {
-				file_array_print(fs, file_array_get_length(fs) - 1, "%.10e ",
-						 neural_network_get_V(ns, row * lattice_width + col));
-			}
-			file_array_print(fs, file_array_get_length(fs) - 1, "\n");
-		}
-		file_array_print(fs, file_array_get_length(fs) - 1, "\n");
-
+		
 		neural_network_integrate(ns, time_step);
 	}
 

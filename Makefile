@@ -10,13 +10,17 @@ MKDIR = mkdir -p
 
 all: dirs bin/neuralnet bin/test_neuralnet
 
-dirs: bin bin/obj bin/test_obj output
+dirs: bin bin/obj bin/test_obj output images
 bin:
 	$(MKDIR) bin
 bin/obj:
 	$(MKDIR) bin/obj
 bin/test_obj:
 	$(MKDIR) bin/test_obj
+output:
+	$(MKDIR) output
+images:
+	$(MKDIR) images 
 
 bin/neuralnet: bin/obj/main.o bin/obj/neuron.o bin/obj/file_array.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o
 	$(CC) $(CFLAGS) -o bin/neuralnet bin/obj/main.o bin/obj/neuron.o bin/obj/file_array.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o $(LDFLAGS)
