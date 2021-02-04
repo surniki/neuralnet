@@ -56,10 +56,10 @@ void adj_matrix_set_lattice(adj_matrix am, uint width, uint height, double cf)
 
 	uint left, right, up, down;
 	for (int row = 0; row < am->node_count; row++) {
-		left = (uint)wrap_around(row - 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
-		right = (uint)wrap_around(row + 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
-		up = (uint)wrap_around(row - width, 0, width * height - 1);
-		down = (uint)wrap_around(row + width, 0, width * height - 1);
+		left = math_utils_wrap_around(row - 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
+		right = math_utils_wrap_around(row + 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
+		up = math_utils_wrap_around(row - width, 0, width * height - 1);
+		down = math_utils_wrap_around(row + width, 0, width * height - 1);
 		am->couplings[row * am->node_count + left] = cf;
 		am->couplings[row * am->node_count + right] = cf;
 		am->couplings[row * am->node_count + up] = cf;

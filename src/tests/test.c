@@ -7,7 +7,7 @@
 
 static const struct test_entry entries[] = {
 	test_entry(test_file_array_create_destroy),
-	test_entry(test_wrap_around),
+	test_entry(test_math_utils_wrap_around),
 	test_entry(test_adj_matrix_create_destroy),
 	test_entry(test_adj_matrix_get),
 	test_entry(test_adj_matrix_set_empty),

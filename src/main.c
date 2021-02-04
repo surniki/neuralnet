@@ -37,7 +37,7 @@ struct neuron_profile tonic_profile = {
 };
 
 struct neuron_profile bursting_profile = {
-	.I_inj = 1.0,     /* checked, should have frequency ~8Hz */
+	.I_inj = 1.0,     /* checked, should have frequency ~1Hz */
 	.C = 1.0,         /* checked */
 	.g_leak = 0.1,    /* checked */
 	.V_leak = -60.0,  /* checked */
@@ -71,7 +71,7 @@ static void neuron_init_callback(uint i, uint count,
 	if (i == 0)
 		*np = &tonic_profile;
 	else
-		*np = &tonic_profile;
+		*np = &bursting_profile;
 	
 	*V    = 0.0;
 	*a_K  = 0.0;
@@ -89,7 +89,7 @@ static double element_setter_callback(uint size, uint row, uint col)
 
 int main(void)
 {
-	const uint neuron_count = 1;
+	const uint neuron_count = 2;
 	const double time_step = 0.01;
 	const double final_time = 5000;
 	const double progress_print_interval = 1.0;

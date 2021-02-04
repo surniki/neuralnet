@@ -4,7 +4,7 @@
 
 #include "tests/headers/test_utils.h"
 
-int wrap_around(int given, int lower, int upper)
+int math_utils_wrap_around(int given, int lower, int upper)
 {
 	assert("The interval given must be properly defined." && lower < upper);
 	const int width = upper - lower + 1;
