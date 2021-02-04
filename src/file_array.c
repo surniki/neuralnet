@@ -20,7 +20,7 @@ file_array file_array_create(uint length, const char *dirname)
 	file_array result = malloc((sizeof *result) + (sizeof *(result->files)) * length);
 	result->length = length;
 	long long digits = (long long)ceil(log10(length));
-	uint filename_size = strlen(dirname) + strlen("/.dat") + 1 + digits;
+	uint filename_size = strlen(dirname) + strlen("/.dat") + 1 + 1 + digits;
 	char *filename = malloc(filename_size);
 
 	for (uint i = 0; i < length; i++) {

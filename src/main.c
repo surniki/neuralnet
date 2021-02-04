@@ -9,59 +9,59 @@
 #include "headers/neuron.h"
 
 struct neuron_profile tonic_profile = {
-	.I_inj = 0.0,
-	.C = 1.0,
-	.g_leak = 0.1,
-	.V_leak = -60.0,
-	.rho = 0.607,
-	.g_Na = 1.5,
-	.V_Na = 50.0,
-	.g_K = 2.0,
-	.V_K = -90.0,
-	.g_sd = 0.25,
-	.V_sd = 50.0,
-	.g_sr = 0.25,
-	.V_sr = -90.0,
-	.s_Na = 0.25,
-	.V_0Na = -25.0,
-	.phi = 0.124,
-	.tau_K = 2.0,
-	.tau_sd = 10.0,
-	.tau_sr = 20.0,
-	.v_acc = 0.17,
-	.v_dep = 0.012,
-	.s_K = 0.25,
-	.V_0K = -25.0,
-	.s_sd = 0.09,
-	.V_0sd = -40.0
+	.I_inj = 1.0,     /* checked, should have frequency ~8Hz */
+	.C = 1.0,         /* checked */
+	.g_leak = 0.1,    /* checked */
+	.V_leak = -60.0,  /* checked */
+	.rho = 0.607,     /* checked */
+	.g_Na = 1.5,      /* checked */
+	.V_Na = 50.0,     /* checked */
+	.g_K = 2.0,       /* checked */
+	.V_K = -90.0,     /* checked */
+	.g_sd = 0.25,     /* checked */
+	.V_sd = 50.0,     /* checked */
+	.g_sr = 0.25,     /* checked, in tonic range */
+	.V_sr = -90.0,    /* checked */
+	.s_Na = 0.25,     /* checked */
+	.V_0Na = -25.0,   /* checked */
+	.phi = 0.124,     /* checked */
+	.tau_K = 2.0,     /* checked */
+	.tau_sd = 10.0,   /* checked */
+	.tau_sr = 20.0,   /* checked */
+	.v_acc = 0.17,    /* checked */
+	.v_dep = 0.012,   /* checked */
+	.s_K = 0.25,      /* checked */
+	.V_0K = -25.0,    /* checked */
+	.s_sd = 0.09,     /* checked */
+	.V_0sd = -40.0    /* checked */
 };
 
 struct neuron_profile bursting_profile = {
-	.I_inj = 1.0,
-	.C = 1.0,
-	.g_leak = 0.1,
-	.V_leak = -60.0,
-	.rho = 0.607,
-	.g_Na = 1.5,
-	.V_Na = 50.0,
-	.g_K = 2.0,
-	.V_K = -90.0,
-	.g_sd = 0.25,
-	.V_sd = 50.0,
-	.g_sr = 0.45,
-	.V_sr = -90.0,
-	.s_Na = 0.25,
-	.V_0Na = -25.0,
-	.phi = 0.124,
-	.tau_K = 2.0,
-	.tau_sd = 10.0,
-	.tau_sr = 20.0,
-	.v_acc = 0.17,
-	.v_dep = 0.012,
-	.s_K = 0.25,
-	.V_0K = -25.0,
-	.s_sd = 0.09,
-	.V_0sd = -40.0
+	.I_inj = 1.0,     /* checked, should have frequency ~8Hz */
+	.C = 1.0,         /* checked */
+	.g_leak = 0.1,    /* checked */
+	.V_leak = -60.0,  /* checked */
+	.rho = 0.607,     /* checked */
+	.g_Na = 1.5,      /* checked */
+	.V_Na = 50.0,     /* checked */
+	.g_K = 2.0,       /* checked */
+	.V_K = -90.0,     /* checked */
+	.g_sd = 0.25,     /* checked */
+	.V_sd = 50.0,     /* checked */
+	.g_sr = 0.35,     /* checked, in bursting range */
+	.V_sr = -90.0,    /* checked */
+	.s_Na = 0.25,     /* checked */
+	.V_0Na = -25.0,   /* checked */
+	.phi = 0.124,     /* checked */
+	.tau_K = 2.0,     /* checked */
+	.tau_sd = 10.0,   /* checked */
+	.tau_sr = 20.0,   /* checked */
+	.v_acc = 0.17,    /* checked */
+	.v_dep = 0.012,   /* checked */
+	.s_K = 0.25,      /* checked */
+	.V_0K = -25.0,    /* checked */
+	.s_sd = 0.09,     /* checked */
+	.V_0sd = -40.0    /* checked */
 };
 
 static void neuron_init_callback(uint i, uint count,
@@ -69,14 +69,14 @@ static void neuron_init_callback(uint i, uint count,
 				 struct neuron_profile **np)
 {
 	if (i == 0)
-		*np = &bursting_profile;
+		*np = &tonic_profile;
 	else
 		*np = &tonic_profile;
 	
 	*V    = 0.0;
-	*a_K  = 0.5;
-	*a_sd = 0.5;
-	*a_sr = 0.5;
+	*a_K  = 0.0;
+	*a_sd = 0.0;
+	*a_sr = 0.0;
 }
 
 static double element_setter_callback(uint size, uint row, uint col)
@@ -89,7 +89,7 @@ static double element_setter_callback(uint size, uint row, uint col)
 
 int main(void)
 {
-	const uint neuron_count = 4;
+	const uint neuron_count = 1;
 	const double time_step = 0.01;
 	const double final_time = 5000;
 	const double progress_print_interval = 1.0;
@@ -101,7 +101,7 @@ int main(void)
 	}
 
 	adj_matrix am = adj_matrix_create(neuron_count);
-	adj_matrix_set_custom(am, &element_setter_callback);
+	adj_matrix_set_empty(am);
 	neural_network ns = neural_network_create(neuron_count, &neuron_init_callback, am);
 
 	timer timer = timer_begin();
