@@ -85,15 +85,15 @@ static double neuron_dV_wrt_dt(neural_network ns, uint index, enum runge_kutta_4
 		}
 	}
 
-	const double I_leak = nrn->g_leak * (V - nrn->V_leak);
-	const double a_Na   = 1.0 / (1.0 + exp(-nrn->s_Na * (V - nrn->V_0Na)));
+	const double I_leak = nrn->g_leak * (V - nrn->V_leak); /* check */
+	const double a_Na   = 1.0 / (1.0 + exp(-nrn->s_Na * (V - nrn->V_0Na))); /* check */
 
-	const double I_Na   = nrn->rho * nrn->g_Na * a_Na * (V - nrn->V_Na);
-	const double I_K    = nrn->rho * nrn->g_K  * a_K  * (V - nrn->V_K);
-	const double I_sd   = nrn->rho * nrn->g_sd * a_sd * (V - nrn->V_sd);
-	const double I_sr   = nrn->rho * nrn->g_sr * a_sr * (V - nrn->V_sr);
+	const double I_Na   = nrn->rho * nrn->g_Na * a_Na * (V - nrn->V_Na); /* check */
+	const double I_K    = nrn->rho * nrn->g_K  * a_K  * (V - nrn->V_K); /* check */
+	const double I_sd   = nrn->rho * nrn->g_sd * a_sd * (V - nrn->V_sd); /* check */
+	const double I_sr   = nrn->rho * nrn->g_sr * a_sr * (V - nrn->V_sr); /* check */
 
-	return -(I_leak + I_Na + I_K + I_sd + I_sr + nrn->I_inj + I_coupling) / nrn->C;
+	return -(I_leak + I_Na + I_K + I_sd + I_sr + nrn->I_inj + I_coupling) / nrn->C; /* check */
 }
 
 static double neuron_da_K_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)
@@ -134,8 +134,8 @@ static double neuron_da_K_wrt_dt(neural_network ns, uint index, enum runge_kutta
 		break;
 	}
 	
-	const double a_K_inf = 1.0 / (1.0 + exp(-nrn->s_K * (V - nrn->V_0K)));
-	return (nrn->phi / nrn->tau_K) * (a_K_inf - a_K);
+	const double a_K_inf = 1.0 / (1.0 + exp(-nrn->s_K * (V - nrn->V_0K))); /* check */
+	return (nrn->phi / nrn->tau_K) * (a_K_inf - a_K); /* check */
 }
 
 static double neuron_da_sd_wrt_dt(neural_network ns, uint index, enum runge_kutta_4_k_context k_number)

@@ -1,12 +1,12 @@
 
-#include "headers/test_file_array.h"
+#include "headers/test_file_table.h"
 #include "headers/test_math_utils.h"
 #include "headers/test_adj_matrix.h"
 #include "headers/test_timer.h"
 #include "headers/test_utils.h"
 
 static const struct test_entry entries[] = {
-	test_entry(test_file_array_create_destroy),
+	test_entry(test_file_table_create_destroy),
 	test_entry(test_math_utils_wrap_around),
 	test_entry(test_adj_matrix_create_destroy),
 	test_entry(test_adj_matrix_get),
