@@ -5,7 +5,7 @@
 #include <assert.h>
 #include "headers/deftypes.h"
 #include "headers/neuron.h"
-#include "headers/file_array.h"
+#include "headers/file_table.h"
 #include "headers/adj_matrix.h"
 
 #include "tests/headers/test_utils.h"
