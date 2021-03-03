@@ -358,6 +358,7 @@ void neural_network_destroy(neural_network *ns)
 	free((*ns)->k4_a_K);
 	free((*ns)->k4_a_sd);
 	free((*ns)->k4_a_sr);
+	free((*ns)->profiles);
 	free(*ns);
 	*ns = NULL;
 }

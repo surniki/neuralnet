@@ -12,3 +12,13 @@ bool test_math_utils_wrap_around(void)
 
 	return test_1 && test_2 && test_3 && test_4;
 }
+
+bool test_math_utils_equal_within_tolerance(void)
+{
+	bool test_1 = math_utils_equal_within_tolerance(42.0, 42.0, 0.0);
+	bool test_2 = math_utils_equal_within_tolerance(42.0, 42.0, 0.0001);
+	bool test_3 = !math_utils_equal_within_tolerance(42.0, 42.01, 0.0001);
+	bool test_4 = math_utils_equal_within_tolerance(42.0, 42.00001, 0.0001);
+
+	return test_1 && test_2 && test_3 && test_4;
+}

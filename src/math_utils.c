@@ -1,7 +1,7 @@
 
 #include <assert.h>
+#include <math.h>
 #include "headers/math_utils.h"
-
 #include "tests/headers/test_utils.h"
 
 int math_utils_wrap_around(int given, int lower, int upper)
@@ -19,3 +19,7 @@ int math_utils_wrap_around(int given, int lower, int upper)
 	return result;
 }
 
+bool math_utils_equal_within_tolerance(double v1, double v2, double tolerance)
+{
+	return v1 == v2 || fabs(v1 - v2) <= tolerance;
+}
