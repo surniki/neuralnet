@@ -1,0 +1,71 @@
+
+3x3 Lattice with center tonic, rest bursting, g_c = 0:
+
++-----+-----+-----+
+|  B  |  B  |  B  |
++-----+-----+-----+
+|  B  |  T  |  B  |
++-----+-----+-----+
+|  B  |  B  |  B  |
++-----+-----+-----+
+
+static struct neuron_profile tonic_profile = {
+	.I_inj = 0.0,     /* checked */
+	.C = 1.0,         /* checked */
+	.g_leak = 0.1,    /* checked */
+	.V_leak = -60.0,  /* checked */
+	.rho = 0.607,     /* checked */
+	.g_Na = 1.5,      /* checked, changed from 1.5 -> 1.0 */
+	.V_Na = 50.0,     /* checked */
+	.g_K = 2.0,       /* checked */
+	.V_K = -90.0,     /* checked */
+	.g_sd = 0.25,     /* checked */
+	.V_sd = 50.0,     /* checked */
+	.g_sr = 0.25,     /* checked, in tonic range */
+	.V_sr = -90.0,    /* checked */
+	.s_Na = 0.25,     /* checked */
+	.V_0Na = -25.0,   /* checked */
+	.phi = 0.124,     /* checked */
+	.tau_K = 2.0,     /* checked */
+	.tau_sd = 10.0,   /* checked */
+	.tau_sr = 20.0,   /* checked */
+	.v_acc = 0.012,   /* checked, changed from 0.17 -> 0.012 */
+	.v_dep = 0.17,    /* checked, changed from 0.012 -> 0.17  */
+	.s_K = 0.25,      /* checked */
+	.V_0K = -25.0,    /* checked */
+	.s_sd = 0.09,     /* checked */
+	.V_0sd = -40.0    /* checked */
+};
+static struct neuron_profile bursting_profile = {
+	.I_inj = 1.0,     /* checked, should have frequency ~1Hz */
+	.C = 1.0,         /* checked */
+	.g_leak = 0.1,    /* checked */
+	.V_leak = -60.0,  /* checked */
+	.rho = 0.607,     /* checked */
+	.g_Na = 1.5,      /* checked */
+	.V_Na = 50.0,     /* checked */
+	.g_K = 2.0,       /* checked */
+	.V_K = -90.0,     /* checked */
+	.g_sd = 0.25,     /* checked */
+	.V_sd = 50.0,     /* checked */
+	.g_sr = 0.35,     /* checked, in bursting range */
+	.V_sr = -90.0,    /* checked */
+	.s_Na = 0.25,     /* checked */
+	.V_0Na = -25.0,   /* checked */
+	.phi = 0.124,     /* checked */
+	.tau_K = 2.0,     /* checked */
+	.tau_sd = 10.0,   /* checked */
+	.tau_sr = 20.0,   /* checked */
+	.v_acc = 0.012,   /* checked, changed from 0.17 -> 0.012 */
+	.v_dep = 0.17,    /* checked, changed from 0.012 -> 0.17  */
+	.s_K = 0.25,      /* checked */
+	.V_0K = -25.0,    /* checked */
+	.s_sd = 0.09,     /* checked */
+	.V_0sd = -40.0    /* checked */
+};
+
+Simulation runs using a time step of 0.1 ms until a final time of 5000 ms.
+Neural network has 9 neurons in it.
+--------------------------------------------------------------------------------
+
+Total runtime with original adj_matrix implementation: 1.51 seconds.
