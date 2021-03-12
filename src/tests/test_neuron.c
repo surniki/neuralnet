@@ -7,8 +7,9 @@
 #include "../headers/adj_matrix.h"
 #include "../headers/math_utils.h"
 #include "headers/test_utils.h"
+#include "../headers/neuron_config.h"
 
-static struct neuron_profile tonic_profile = {
+static struct neuron_profile test_tonic_profile = {
 	.I_inj = 0.0,     /* checked */
 	.C = 1.0,         /* checked */
 	.g_leak = 0.1,    /* checked */
@@ -36,7 +37,7 @@ static struct neuron_profile tonic_profile = {
 	.V_0sd = -40.0    /* checked */
 };
 
-static struct neuron_profile bursting_profile = {
+static struct neuron_profile test_bursting_profile = {
 	.I_inj = 1.0,     /* checked, should have frequency ~1Hz */
 	.C = 1.0,         /* checked */
 	.g_leak = 0.1,    /* checked */
@@ -64,7 +65,7 @@ static struct neuron_profile bursting_profile = {
 	.V_0sd = -40.0    /* checked */
 };
 
-static void neuron_init_callback_double_center(uint i, uint count,
+static void test_neuron_init_callback_double_center(uint i, uint count,
 					       double *V, double *a_K, double *a_sd, double *a_sr,
 					       struct neuron_profile **np)
 {
@@ -73,9 +74,9 @@ static void neuron_init_callback_double_center(uint i, uint count,
 	uint offset = side_length / 4;
 
 	if (i == center + offset || i == center - offset)
-		*np = &tonic_profile;
+		*np = &test_tonic_profile;
 	else
-		*np = &bursting_profile;
+		*np = &test_bursting_profile;
 	
 	*V    = 0.0;
 	*a_K  = 0.0;
@@ -83,7 +84,7 @@ static void neuron_init_callback_double_center(uint i, uint count,
 	*a_sr = 0.0;
 }
 
-static void neuron_init_callback_single_center(uint i, uint count,
+static void test_neuron_init_callback_single_center(uint i, uint count,
 					       double *V, double *a_K, double *a_sd, double *a_sr,
 					       struct neuron_profile **np)
 {
@@ -91,9 +92,9 @@ static void neuron_init_callback_single_center(uint i, uint count,
 	uint center = side_length * (side_length / 2) + (side_length / 2);
 
 	if (i == center)
-		*np   = &tonic_profile;
+		*np   = &test_tonic_profile;
 	else
-		*np   = &bursting_profile;
+		*np   = &test_bursting_profile;
 
 	*V    = 0.0;
 	*a_K  = 0.0;
@@ -101,22 +102,22 @@ static void neuron_init_callback_single_center(uint i, uint count,
 	*a_sr = 0.0;
 }
 
-static void neuron_init_callback_bursting(uint i, uint count,
+static void test_neuron_init_callback_bursting(uint i, uint count,
 					  double *V, double *a_K, double *a_sd, double *a_sr,
 					  struct neuron_profile **np)
 {
-	*np   = &bursting_profile;
+	*np   = &test_bursting_profile;
 	*V    = 0.0;
 	*a_K  = 0.0;
 	*a_sd = 0.0;
 	*a_sr = 0.0;
 }
 
-static void neuron_init_callback_tonic(uint i, uint count,
+static void test_neuron_init_callback_tonic(uint i, uint count,
 				       double *V, double *a_K, double *a_sd, double *a_sr,
 				       struct neuron_profile **np)
 {
-	*np   = &tonic_profile;
+	*np   = &test_tonic_profile;
 	*V    = 0.0;
 	*a_K  = 0.0;
 	*a_sd = 0.0;
@@ -126,7 +127,7 @@ static void neuron_init_callback_tonic(uint i, uint count,
 bool test_neural_network_create_destroy(void)
 {
 	size_t prev_alloc = current_number_of_allocations();
-	neural_network ns = neural_network_create(50, &neuron_init_callback_tonic, NULL);
+	neural_network ns = neural_network_create(50, &test_neuron_init_callback_tonic, NULL);
 	neural_network_destroy(&ns);
 	bool test_1 = ns == NULL;
 	bool test_2 = current_number_of_allocations() == prev_alloc;
@@ -147,8 +148,8 @@ bool test_neural_network_integrate_single_tonic(void)
 	double time_step = 0.1;
 	double final_time = 5000;
 	adj_matrix am = adj_matrix_create(1);
-	adj_matrix_set_empty(am);
-	neural_network ns = neural_network_create(1, &neuron_init_callback_tonic, am);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_empty);
+	neural_network ns = neural_network_create(1, &test_neuron_init_callback_tonic, am);
 
 	double sim_time;	
 	while ((sim_time = neural_network_get_time(ns)) < final_time) {
@@ -190,8 +191,8 @@ bool test_neural_network_integrate_single_bursting(void)
 	double time_step = 0.1;
 	double final_time = 5000;
 	adj_matrix am = adj_matrix_create(1);
-	adj_matrix_set_empty(am);
-	neural_network ns = neural_network_create(1, &neuron_init_callback_bursting, am);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_empty);
+	neural_network ns = neural_network_create(1, &test_neuron_init_callback_bursting, am);
 
 	double sim_time;	
 	while ((sim_time = neural_network_get_time(ns)) < final_time) {
@@ -249,8 +250,8 @@ bool test_neural_network_integrate_3x3_uncoupled(void)
 	double time_step = 0.1;
 	double final_time = 5000;
 	adj_matrix am = adj_matrix_create(9);
-	adj_matrix_set_empty(am);
-	neural_network ns = neural_network_create(9, &neuron_init_callback_single_center, am);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_empty);
+	neural_network ns = neural_network_create(9, &test_neuron_init_callback_single_center, am);
 
 	double sim_time;	
 	while ((sim_time = neural_network_get_time(ns)) < final_time) {
@@ -324,8 +325,8 @@ bool test_neural_network_integrate_3x3_coupled(void)
 	double time_step = 0.1;
 	double final_time = 5000;
 	adj_matrix am = adj_matrix_create(9);
-	adj_matrix_set_lattice(am, 3, 3, 0.1);
-	neural_network ns = neural_network_create(9, &neuron_init_callback_single_center, am);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_lattice);
+	neural_network ns = neural_network_create(9, &test_neuron_init_callback_single_center, am);
 
 	double sim_time;	
 	while ((sim_time = neural_network_get_time(ns)) < final_time) {
@@ -370,3 +371,61 @@ bool test_neural_network_integrate_3x3_coupled(void)
 	
 	return test;
 }
+
+#define STEPS 5000
+bool test_neural_network_integrate_single_tonic_backwards(void)
+{
+	double time_step = 0.1;
+	adj_matrix am = adj_matrix_create(1);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_empty);
+	neural_network ns = neural_network_create(1, &test_neuron_init_callback_tonic, am);
+	
+	double voltages[STEPS] = {0};
+	for (int i = 0; i < STEPS; i++) {
+		voltages[i] = neural_network_get_V(ns, 0);
+		neural_network_integrate(ns, time_step);
+	}
+
+	bool test = true;
+	for (int i = STEPS - 1; i >= 0; i--) {
+		neural_network_integrate(ns, -time_step);
+		double v1 = voltages[i];
+		double v2 = neural_network_get_V(ns, 0);
+		test = test && math_utils_equal_within_tolerance(v1, v2, tolerance);
+	}
+
+	adj_matrix_destroy(&am);
+	neural_network_destroy(&ns);
+
+	return test;
+}
+
+bool test_neural_network_integrate_3x3_coupled_backwards(void)
+{
+	double time_step = 0.1;
+	adj_matrix am = adj_matrix_create(9);
+	adj_matrix_set_custom(am, &adj_matrix_init_callback_lattice);
+	neural_network ns = neural_network_create(9, &test_neuron_init_callback_single_center, am);
+
+	const uint center_index = 4;
+	double voltages[STEPS] = {0};
+	for (int i = 0; i < STEPS; i++) {
+		voltages[i] = neural_network_get_V(ns, center_index);
+		neural_network_integrate(ns, time_step);
+	}
+
+	bool test = true;
+	for (int i = STEPS - 1; i >= 0; i--) {
+		neural_network_integrate(ns, -time_step);
+		double v1 = voltages[i];
+		double v2 = neural_network_get_V(ns, center_index);
+		test = test && math_utils_equal_within_tolerance(v1, v2, tolerance);
+	}
+
+	adj_matrix_destroy(&am);
+	neural_network_destroy(&ns);
+
+	return test;
+}
+#undef STEPS
+

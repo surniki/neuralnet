@@ -10,6 +10,7 @@ static const struct test_entry entries[] = {
 	test_entry(test_file_table_create_destroy),
 	test_entry(test_math_utils_wrap_around),
 	test_entry(test_math_utils_equal_within_tolerance),
+	test_entry(test_math_utils_lattice_indices),
 	test_entry(test_adj_matrix_create_destroy),
 	test_entry(test_adj_matrix_get),
 	test_entry(test_adj_matrix_set_empty),
@@ -23,6 +24,8 @@ static const struct test_entry entries[] = {
 	test_entry(test_neural_network_integrate_single_bursting),
 	test_entry(test_neural_network_integrate_3x3_uncoupled),
 	test_entry(test_neural_network_integrate_3x3_coupled),
+	test_entry(test_neural_network_integrate_single_tonic_backwards),
+	test_entry(test_neural_network_integrate_3x3_coupled_backwards),
 	null_entry
 };
 

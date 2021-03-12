@@ -6,5 +6,6 @@
 
 bool test_math_utils_wrap_around(void);
 bool test_math_utils_equal_within_tolerance(void);
+bool test_math_utils_lattice_indices(void);
 
 #endif

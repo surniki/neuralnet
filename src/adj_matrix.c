@@ -24,54 +24,10 @@ adj_matrix adj_matrix_create(uint node_count)
 	return result;
 }
 
-void adj_matrix_set_complete(adj_matrix am, double cf)
-{
-	assert(am);
-	for (uint row = 0; row < am->node_count; row++) {
-		for (uint col = 0; col < am->node_count; col++) {
-			if (row == col) {
-				am->couplings[row * am->node_count + col] = 0.0;
-			}
-			else {
-				am->couplings[row * am->node_count + col] = cf;
-			}
-		}
-	}
-}
-
-void adj_matrix_set_empty(adj_matrix am)
-{
-	assert(am);
-	adj_matrix_set_complete(am, 0.0);
-}
-
-void adj_matrix_set_lattice(adj_matrix am, uint width, uint height, double cf)
-{
-	assert(am);
-	assert("Invalid lattice dimensions given." && am->node_count == width * height);
-	assert("Width must be greater than 1." && width > 1);
-	assert("Height must be greater than 1." && height > 1);
-
-	adj_matrix_set_empty(am);
-
-	uint left, right, up, down;
-	for (int row = 0; row < am->node_count; row++) {
-		left = math_utils_wrap_around(row - 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
-		right = math_utils_wrap_around(row + 1, width * (int)(row / width), (1 + (int)(row / width)) * width - 1);
-		up = math_utils_wrap_around(row - width, 0, width * height - 1);
-		down = math_utils_wrap_around(row + width, 0, width * height - 1);
-		am->couplings[row * am->node_count + left] = cf;
-		am->couplings[row * am->node_count + right] = cf;
-		am->couplings[row * am->node_count + up] = cf;
-		am->couplings[row * am->node_count + down] = cf;
-	}
-}
-
 void adj_matrix_set_custom(adj_matrix am, double (*element_setter)(uint size, uint row, uint col))
 {
+	assert(am);
 	assert("Need a valid element_setter function pointer." && element_setter != NULL);
-
-	adj_matrix_set_empty(am);
 
 	for (uint row = 0; row < am->node_count; row++) {
 		for (uint col = 0; col < am->node_count; col++) {

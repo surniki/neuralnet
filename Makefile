@@ -3,7 +3,7 @@
 
 CC = gcc
 CFLAGS = -std=c11 -g 
-LDFLAGS = -lm
+LDFLAGS = -lm -lSDL2 -lSDL2_ttf
 MKDIR = mkdir -p
 
 .PHONY: dirs
@@ -22,8 +22,8 @@ output:
 images:
 	$(MKDIR) images 
 
-bin/neuralnet: bin/obj/main.o bin/obj/neuron.o bin/obj/file_table.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o
-	$(CC) $(CFLAGS) -o bin/neuralnet bin/obj/main.o bin/obj/neuron.o bin/obj/file_table.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o $(LDFLAGS)
+bin/neuralnet: bin/obj/main.o bin/obj/neuron.o bin/obj/file_table.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o bin/obj/neuron_config.o
+	$(CC) $(CFLAGS) -o bin/neuralnet bin/obj/main.o bin/obj/neuron.o bin/obj/file_table.o bin/obj/adj_matrix.o bin/obj/math_utils.o bin/obj/timer.o bin/obj/neuron_config.o $(LDFLAGS)
 
 bin/obj/main.o: src/main.c
 	$(CC) $(CFLAGS) -o bin/obj/main.o -c src/main.c $(LDFLAGS)
@@ -43,8 +43,11 @@ bin/obj/math_utils.o: src/math_utils.c src/headers/math_utils.h
 bin/obj/timer.o: src/timer.c src/headers/timer.h
 	$(CC) $(CFLAGS) -o bin/obj/timer.o -c src/timer.c $(LDFLAGS)
 
-bin/test_neuralnet: bin/test_obj/test.o bin/test_obj/test_utils.o bin/test_obj/test_file_table.o bin/test_obj/test_adj_matrix.o bin/test_obj/test_math_utils.o bin/test_obj/test_timer.o bin/test_obj/neuron.o bin/test_obj/file_table.o bin/test_obj/adj_matrix.o bin/test_obj/math_utils.o bin/test_obj/timer.o bin/test_obj/test_neuron.o
-	$(CC) $(CFLAGS) -o bin/test_neuralnet bin/test_obj/test.o bin/test_obj/test_utils.o bin/test_obj/test_file_table.o bin/test_obj/test_adj_matrix.o bin/test_obj/test_math_utils.o bin/test_obj/test_timer.o bin/test_obj/neuron.o bin/test_obj/file_table.o bin/test_obj/adj_matrix.o bin/test_obj/math_utils.o bin/test_obj/timer.o bin/test_obj/test_neuron.o $(LDFLAGS)
+bin/obj/neuron_config.o: src/neuron_config.c src/headers/neuron_config.h
+	$(CC) $(CFLAGS) -o bin/obj/neuron_config.o -c src/neuron_config.c $(LDFLAGS)
+
+bin/test_neuralnet: bin/test_obj/test.o bin/test_obj/test_utils.o bin/test_obj/test_file_table.o bin/test_obj/test_adj_matrix.o bin/test_obj/test_math_utils.o bin/test_obj/test_timer.o bin/test_obj/neuron.o bin/test_obj/file_table.o bin/test_obj/adj_matrix.o bin/test_obj/math_utils.o bin/test_obj/timer.o bin/test_obj/test_neuron.o bin/test_obj/neuron_config.o
+	$(CC) $(CFLAGS) -o bin/test_neuralnet bin/test_obj/test.o bin/test_obj/test_utils.o bin/test_obj/test_file_table.o bin/test_obj/test_adj_matrix.o bin/test_obj/test_math_utils.o bin/test_obj/test_timer.o bin/test_obj/neuron.o bin/test_obj/file_table.o bin/test_obj/adj_matrix.o bin/test_obj/math_utils.o bin/test_obj/timer.o bin/test_obj/test_neuron.o bin/test_obj/neuron_config.o $(LDFLAGS)
 
 bin/test_obj/test.o: src/tests/test.c src/tests/headers/test_utils.h
 	$(CC) $(CFLAGS) -o bin/test_obj/test.o -c src/tests/test.c -DRUN_TESTS $(LDFLAGS)
@@ -81,6 +84,9 @@ bin/test_obj/math_utils.o: src/math_utils.c src/headers/math_utils.h
 
 bin/test_obj/timer.o: src/timer.c src/headers/timer.h
 	$(CC) $(CFLAGS) -o bin/test_obj/timer.o -c src/timer.c -DRUN_TESTS $(LDFLAGS)
+
+bin/test_obj/neuron_config.o: src/neuron_config.c src/headers/neuron_config.h
+	$(CC) $(CFLAGS) -o bin/test_obj/neuron_config.o -c src/neuron_config.c -DRUN_TESTS $(LDFLAGS)
 
 clean:
 	rm -d -r bin output
