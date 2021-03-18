@@ -2,8 +2,7 @@
 #ifndef NEURON_CONFIG_H
 #define NEURON_CONFIG_H
 
-#include "neuron.h"
-
+struct neuron_profile;
 
 struct neuron_init_entry {
 	const char *name;

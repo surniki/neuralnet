@@ -9,8 +9,6 @@
 #include "headers/deftypes.h"
 #include "headers/timer.h"
 #include "headers/file_table.h"
-#include "headers/adj_matrix.h"
-#include "headers/neuron.h"
 #include "headers/math_utils.h"
 #include "headers/neuron_config.h"
 
@@ -57,34 +55,80 @@
 #define print_neurons_desc "Toggle for printing the neuron data files individually."
 #define print_voltage_matrix_desc  "Toggle for printing the voltage matrix file."
 
-static const struct neuron_init_entry neuron_init_entries[] = {
-	neuron_init_entry("tonic",
-			  neuron_init_callback_tonic,
-			  "All neurons have the tonic profile."),
-	neuron_init_entry("bursting",
-			  neuron_init_callback_bursting,
-			  "All neurons have the bursting profile."),
-	neuron_init_entry("single-center",
-			  neuron_init_callback_single_center,
-			  "Center is tonic, rest are bursting."),
-	neuron_init_entry("double-center",
-			  neuron_init_callback_double_center,
-			  "Two tonic neurons in center, rest are bursting."),
-	neuron_init_null_entry
+
+struct data_entry {
+	const char *name, *desc;
+	void *data;
+};
+       
+static const struct data_entry parameter_callback_entries[] = {
+	(struct data_entry) {
+		.name = "huber-braun-double-center",
+		.desc = "Two tonic neurons in center, rest are bursting.",
+		.data = &huber_bruan_parameter_callback_double_center
+	},
+	(struct data_entry) {
+		.name = "huber-braun-single-center",
+		.desc = "Center is tonic, rest are bursting.",
+		.data = &huber_braun_parameter_callback_single_center
+	},
+	(struct data_entry) {
+		.name = "huber-braun-tonic",
+		.desc = "All neurons have the tonic profile.",
+		.data = &huber_braun_parameter_callback_tonic
+	},
+	(struct data_entry) {
+		.name = "huber-braun-bursting",
+		.desc = "All neurons have the bursting profile.",
+		.data = &huber_braun_parameter_callback_bursting
+	},
+	(struct parameter_data_entry) {0}
 };
 
-static const struct adj_matrix_init_entry adj_matrix_init_entries[] = {
-	adj_matrix_init_entry("empty",
-			      adj_matrix_init_callback_empty,
-			      "The graph describing the coupling has no edges."),
-	adj_matrix_init_entry("complete",
-			      adj_matrix_init_callback_complete,
-			      "The graph describing the coupling is a complete graph."),
-	adj_matrix_init_entry("lattice",
-			      adj_matrix_init_callback_lattice,
-			      "Neurons are coupled with their four nearest neighbors."),
-	adj_matrix_init_null_entry
+static const struct data_entry coupling_callback_entries[] = {
+	(struct data_entry) {
+		.name = "empty",
+		.desc = "The graph describing the coupling has no edges.",
+		.data = &coupling_callback_empty
+	},
+	(struct data_entry) {
+		.name = "complete",
+		.desc = "The graph describing the coupling is a complete graph.",
+		.data = &coupling_callback_complete
+	},
+	(struct data_entry) {
+		.name = "lattice",
+		.desc = "Neurons are coupled with their four nearest neighbors.",
+		.data = &coupling_callback_lattice
+	},
+	(struct data_entry) {0}	
 };
+
+static const struct data_entry initial_values_callback_entries[] = {
+	(struct data_entry) {
+		.name = "zero",
+		.desc = "Sets all dynamical variables to be zero at the start.",
+		.data = &initial_values_callback_zero
+	},
+	(struct data_entry) {0}
+};
+
+static const struct data_entry model_entries[] = {
+	(struct data_entry) {
+		.name = "huber-braun",
+		.desc = "The Huber-Braun neuron model.",
+		.data = huber-braun-derivatives
+	},
+	(struct data_entry) {0}
+}
+	
+bool is_entry_empty(const struct data_entry *entry)
+{
+	return e->name == (void *)0 && e->desc == (void *)0 && .data == (void *)0;
+}
+
+#define for_entries(entry, entries) \
+	for (const data_entry entry = entries; !is_entry_empty(entry); entry++)
 
 struct run_state {
 	enum RunStateType {
@@ -103,15 +147,15 @@ struct run_state {
 		} random_value_interval;
 		uint neuron_count;
 		double time_step;
-		double (*network_callback)(uint size, uint row, uint col);
-		void (*neuron_callback)(uint i, uint count,
-				    double *V, double *a_K, double *a_sd, double *a_sr,
-				    struct neuron_profile **np);	
+		void *(*parameter_callback)(dynamical_system, uint);
+		double (*coupling_callback)(dynamical_system, uint, uint);
+		void (*initial_values_callback)(uint, uint, double *);
+		double (**model)(dynamical_system ds, uint index);
 	} simopts;
 	struct print_options {
 		double final_time;
 		double print_time;
-		const char *output_directory;
+		const char *output_dir;
 		bool print_neurons;
 		bool print_voltage_matrix;
 	} popts;
@@ -153,21 +197,24 @@ bool parse_output_data(const char ***args, struct run_state *rs)
 bool parse_random_coupling(const char ***args, struct run_state *rs)
 {
 	/* parse two real numbers between 0.0 and 1.0 */
-	const char *lowstr = (*args)[1];
-	if (!lowstr) {
+	const char *first_str = (*args)[1];
+	if (!first_str) {
 		return false;
 	}
-	const char *highstr = (*args)[2];
-	if (!highstr) {
+	const char *second_str = (*args)[2];
+	if (!second_str) {
 		return false;
 	}
-	char *endlow, *endhigh;
-	double low = strtod(lowstr, &endlow);
-	double high = strtod(lowstr, &endhigh);
-	if (!(*endlow == '\0' && *endhigh == '\0')) {
+	char *end_first, *end_second;
+	double first = strtod(first_str, &end_first);
+	double second = strtod(second_str, &end_second);
+       	double low = (first < second) ? first : second;
+	double high = (first > second) ? first : second;
+
+	if (*end_first != '\0' || *end_second != '\0') {
 		return false;
 	}
-	if (low >= high || low < 0.0 || low > 1.0 || high < 0.0 || high > 1.0) {
+	if (low < 0.0 || low > 1.0 || high < 0.0 || high > 1.0) {
 		return false;
 	}
 
@@ -247,40 +294,83 @@ bool parse_time_step(const char ***args, struct run_state *rs)
 	return true;
 }
 
-bool parse_network_callback(const char ***args, struct run_state *rs)
+/*
+  void *(*parameter_callback)(dynamical_system, uint);
+  double (*coupling_callback)(dynamical_system, uint, uint);
+  void (*initial_values_callback)(uint, uint, double *);
+  double (**derivatives)(dynamical_system ds, uint index);
+ */
+
+bool parse_parameter_callback(const char ***args, struct run_state *rs)
 {
-	/* look for symbol in adj_matrix_init_entries */
-	const char *network_callback_name = (*args)[1];
-	if (!network_callback_name) {
+	/* look for symbol in parameter_callback_entries */
+	const char *parameter_callback_name = (*args)[1];
+	if (!parameter_callback_name) {
 		return false;
 	}
-	for (const struct adj_matrix_init_entry *a = adj_matrix_init_entries; !is_adj_matrix_init_entry_empty(*a); a++) {
-		if (!strcmp(a->name, network_callback_name)) {
-			rs->simopts.network_callback = a->callback;
+	for_entries(entry, parameter_callback_entries) {
+		if (!strcmp(entry->name, parameter_callback_name)) {
+			rs->simopts.parameter_callback = entry->data;
 			*args += 2;
 			return true;
 		}
 	}
 
-	return false;	
+	return false;
 }
 
-bool parse_neuron_callback(const char ***args, struct run_state *rs)
+bool parse_coupling_callback(const char ***args, struct run_state *rs)
 {
-	/* look for symbol in neuron_init_entries */
-	const char *neuron_callback_name = (*args)[1];
-	if (!neuron_callback_name) {
+	/* look for symbol in coupling_callback_entries */
+	const char *coupling_callback_name = (*args)[1];
+	if (!coupling_callback_name) {
 		return false;
 	}
-	for (const struct neuron_init_entry *n = neuron_init_entries; !is_neuron_init_entry_empty(*n); n++) {
-		if (!strcmp(n->name, neuron_callback_name)) {
-			rs->simopts.neuron_callback = n->callback;
+	for_entries(entry, coupling_callback_entries) {
+		if (!strcmp(entry->name, parameter_callback_name)) {
+			rs->simopts.coupling_callback = entry->data;
 			*args += 2;
 			return true;
 		}
 	}
 
-	return false;	
+	return false;
+}
+
+bool parse_initial_values_callback(const char ***args, struct run_state *rs)
+{
+	/* look for symbol in initial_value_callback_entries */
+	const char *initial_values_callback_name = (*args)[1];
+	if (!initial_values_callback_name) {
+		return false;
+	}
+	for_entries(entry, inital_value_callback_entries) {
+		if (!strcmp(entry->name, parameter_callback_name)) {
+			rs->simopts.initial_values_callback = entry->data;
+			*args += 2;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+bool parse_model(const char ***args, struct run_state *rs)
+{
+	/* look for symbol in model_entries */
+	const char *model_name = (*args)[1];
+	if (!model_name) {
+		return false;
+	}
+	for_entries(entry, model_entries) {
+		if (!strcmp(entry->name, model_name)) {
+			rs->simopts.model = entry->data;
+			*args += 2;
+			return true;
+		}
+	}
+
+	return false;
 }
 
 bool parse_screen_width(const char ***args, struct run_state *rs)
@@ -386,12 +476,12 @@ bool parse_print_time(const char ***args, struct run_state *rs)
 
 bool parse_output_dir(const char ***args, struct run_state *rs) {
      	/* parse one string */
-	const char *output_directory = (*args)[1];
-	if (!output_directory) {
+	const char *output_dir = (*args)[1];
+	if (!output_dir) {
 		return false;
 	}
 
-	rs->popts.output_directory = output_directory;
+	rs->popts.output_dir = output_dir;
 	*args += 2;
 	return true;	
 }
@@ -448,46 +538,125 @@ struct command_line_option {
 	bool (*parser)(const char ***args, struct run_state *rs);
 };
 
-#define command_line_entry(option_name, option_parser, option_desc)	\
-	(struct command_line_option) {\
-		.option = option_name,\
-		.parser = option_parser,\
-		.desc = option_desc\
-	}
-
-#define command_line_null_entry (struct command_line_option) \
-	(struct command_line_option) {\
-		.option = (void *)0,\
-		.parser = (void *)0,\
-		.desc = (void *)0\
-	}
-
-bool is_command_line_entry_empty(struct command_line_option e) {
-	return e.option == (void *)0 && e.parser == (void *)0;
+bool is_option_empty(const struct command_line_option *e) {
+	return e->option == (void *)0 && e->desc == (void *)0 && e->parser == (void *)0;
 }
 
-const struct command_line_option command_line_entries[] = {
-	command_line_entry("-h", &parse_help, help_desc),
-	command_line_entry("--help", &parse_help, help_desc),
-	command_line_entry("-v", &parse_version, version_desc),
-	command_line_entry("--version", &parse_version, version_desc),
-	command_line_entry("--visualize", &parse_visualize, visualize_desc),
-	command_line_entry("--output-data", &parse_output_data, output_data_desc),
-	command_line_entry("--random-coupling", &parse_random_coupling, random_coupling_desc),
-	command_line_entry("--coupling-constant", &parse_coupling_constant, coupling_constant_desc),
-	command_line_entry("--neuron-count", &parse_neuron_count, neuron_count_desc),
-	command_line_entry("--time-step", &parse_time_step, time_step_desc),
-	command_line_entry("--network-callback", &parse_network_callback, network_callback_desc),
-	command_line_entry("--neuron-callback", &parse_neuron_callback, neuron_callback_desc),
-	command_line_entry("--screen-width", &parse_screen_width, screen_width_desc),
-	command_line_entry("--screen-height", &parse_screen_height, screen_height_desc),
-	command_line_entry("--fontpath", &parse_fontpath, fontpath_desc),
-	command_line_entry("--final-time", &parse_final_time, final_time_desc),
-	command_line_entry("--print-time", &parse_print_time, print_time_desc),
-	command_line_entry("--output-dir", &parse_output_dir, output_dir_desc),
-	command_line_entry("--print-neurons", &parse_print_neurons, print_neurons_desc),
-	command_line_entry("--print-voltage-matrix", &parse_print_voltage_matrix, print_voltage_matrix_desc),
-	command_line_null_entry
+#define for_options(option, options) \
+	for(const struct command_line_option *option = options; !is_option_empty(option); option++)
+
+const struct command_line_option command_line_options[] = {
+	(struct command_line_option) {
+		.option = "-h",
+		.parser = &parse_help,
+		.desc = help_desc
+	},
+	(struct command_line_option) {
+		.option = "--help",
+		.parser = &parse_help,
+		.desc = help_desc
+	},
+	(struct command_line_option) {
+		.option = "-v",
+		.parser = &parse_version,
+		.desc = version_desc
+	},
+	(struct command_line_option) {
+		.option = "--version",
+		.parser = &parse_version,
+		.desc = version_desc
+	},
+	(struct command_line_option) {
+		.option = "--visualize",
+		.parser = &parse_visualize,
+		.desc = visualize_desc
+	},
+	(struct command_line_option) {
+		.option = "--output-data",
+		.parser = &parse_output_data,
+		.desc = output_data_desc
+	},
+	(struct command_line_option) {
+		.option = "--random-coupling",
+		.parser = &parse_random_coupling,
+		.desc = random_coupling_desc
+	},
+	(struct command_line_option) {
+		.option = "--coupling-constant",
+		.parser = &parse_coupling_constant,
+		.desc = coupling_constant_desc
+	},
+	(struct command_line_option) {
+		.option = "--neuron-count",
+		.parser = &parse_neuron_count,
+		.desc = neuron_count_desc
+	},
+	(struct command_line_option) {
+		.option = "--time-step",
+		.parser = &parse_time_step,
+		.desc = time_step_desc
+	},
+	(struct command_line_option) {
+		.option = "--parameter-callback",
+		.parser = &parse_parameter_callback,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--coupling-callback",
+		.parser = &parse_coupling_callback,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--initial-values-callback",
+		.parser = &parse_initial_values_callback,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--model",
+		.parser = &parse_model,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--screen-width",
+		.parser = &parse_screen_width,
+		.desc = screen_width_desc
+	},
+	(struct command_line_option) {
+		.option = "--screen-height",
+		.parser = &parse_screen_height,
+		.desc = screen_height_desc
+	},
+	(struct command_line_option) {
+		.option = "--font",
+		.parser = &parse_fontpath,
+		.desc = fontpath_desc
+	},
+	(struct command_line_option) {
+		.option = "--final-time",
+		.parser = &parse_final_time,
+		.desc = final_time_desc
+	},
+	(struct command_line_option) {
+		.option = "--print-time",
+		.parser = &parse_print_time,
+		.desc = print_time_desc
+	},
+	(struct command_line_option) {
+		.option = "--output-dir",
+		.parser = &parse_output_dir,
+		.desc = output_dir_desc
+	},
+	(struct command_line_option) {
+		.option = "--print-neurons",
+		.parser = &parse_print_neurons,
+		.desc = print_neurons_desc
+	},
+	(struct command_line_option) {
+		.option = "--print-voltage-matrix",
+		.parser = &parse_print_voltage_matrix,
+		.desc = print_voltage_matrix_desc
+	},
+	(struct command_line_option) {0}
 };
 
 static const struct run_state default_run_state = (const struct run_state) {
@@ -498,11 +667,13 @@ static const struct run_state default_run_state = (const struct run_state) {
 	.simopts.random_value_interval.lowest = 0.0,
 	.simopts.neuron_count = 225,
 	.simopts.time_step = 0.1,
-	.simopts.network_callback = &adj_matrix_init_callback_lattice,
-	.simopts.neuron_callback = &neuron_init_callback_single_center,
+	.simopts.parameter_callback = &huber_braun_parameter_callback_single_center,
+	.simopts.coupling_callback = &coupling_callback_lattice;
+	.simopts.initial_values_callback = &initial_values_callback_zero;
+	.simopts.model = huber_braun_model;
 	.popts.final_time = 10000,
 	.popts.print_time = 1,
-	.popts.output_directory = "output",
+	.popts.output_dir = "output",
 	.popts.print_neurons = false,
 	.popts.print_voltage_matrix = true,
 	.vopts.screen_width = 800,
@@ -512,8 +683,8 @@ static const struct run_state default_run_state = (const struct run_state) {
 
 int print_help(void);
 int print_version(void);
-int visualize_main(struct visual_options options);
-int print_data_main(struct print_options options);
+int visualize_main(struct simulation_options *simopts, struct visual_options *vopts);
+int print_data_main(struct simulation_options *simopts, struct print_options *popts);
 
 struct run_state parse_command_line_arguments(int argc, const char **argv)
 {
@@ -526,9 +697,7 @@ struct run_state parse_command_line_arguments(int argc, const char **argv)
 		argv = &argv[1]; /* get rid of the program name */
 		while (*argv != NULL) {
 			const char *current_arg = argv[0];
-			for (const struct command_line_option *o = command_line_entries;
-			     !is_command_line_entry_empty(*o);
-			     o++) {
+			for_options(o, command_line_options) {
 				if (!strcmp(o->option, current_arg)) {
 					if (!o->parser(&argv, &result)) {
 						result.type = RUN_STATE_ERROR;
@@ -552,9 +721,9 @@ int main(int argc, const char **argv)
 
 	switch(state.type) {
 	case RUN_STATE_VISUALIZE:
-		return visualize_main(state.vopts);
+		return visualize_main(&state.simopts, &state.vopts);
 	case RUN_STATE_OUTPUT_DATA:
-		return print_data_main(state.popts);
+		return print_data_main(&state.simopts, &state.popts);
 	case RUN_STATE_PRINT_VERSION:
 		return print_version();
 	case RUN_STATE_PRINT_HELP:
@@ -567,18 +736,29 @@ int main(int argc, const char **argv)
 	return 1;
 }
 
-int visualize_main(struct visual_options options)
-{
-	uint screen_width = 800;
-	uint screen_height = 800;
-	uint header_height = 100;
-	
+int visualize_main(struct simulation_options *simopts, struct visual_options *vopts)
+{	
 	SDL_Init(SDL_INIT_VIDEO);
 	TTF_Init();
-	SDL_Window *window = SDL_CreateWindow("neuralnet", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, screen_width, screen_height, 0);
+	SDL_Window *window = SDL_CreateWindow("neuralnet", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, vopts->screen_width, vopts->screen_height, 0);
 	TTF_Font *font = TTF_OpenFont("res/LiberationMono-Regular.ttf", 24);
 	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
 
+	/* constuct the neural network */
+	if (simopts->coupling_constant_is_random) {
+		neuron_config_coupling_is_random_set(true,
+						     simopts->random_value_interval.highest,
+						     simopts->random_value_interval.lowest);
+	}
+	else {
+		neuron_config_coupling_constant_set(simopts->coupling_constant);
+	}
+
+	uint grid_width = sqrt(simopts->neuron_count);
+	uint grid_height = sqrt(simopts->neuron_count);
+
+	double sim_time = 0.0;
+	
 	bool running = true;
 	uint millis_per_frame = 1000 / 60;
 	uint start_time_millis, end_time_millis;
@@ -619,6 +799,7 @@ int visualize_main(struct visual_options options)
 		SDL_RenderClear(renderer);
 		
 		/* draw the heat map cells representing the voltage of each neuron */
+
 		/* draw header information */
 
 		SDL_RenderPresent(renderer);
@@ -638,37 +819,60 @@ int visualize_main(struct visual_options options)
 	return 0;
 }
 
-int print_data_main(struct print_options options)
+int print_data_main(struct simulation_options *simopts, struct print_options *popts)
 {
-	const uint lattice_width = 3;
-	const uint lattice_height = 3;
-	const uint neuron_count = lattice_width * lattice_height;
-	const double time_step = 0.1;
-	const double final_time = 5000;
-	const double print_time = 1.0;
+#if 0
 	const double progress_print_interval = 1.0;
-	
-	file_table fs = file_table_create("output", neuron_count, 1, "voltage_matrix.dat");
+
+	if (simopts->coupling_constant_is_random) {
+		neuron_config_coupling_is_random_set(true,
+						     simopts->random_value_interval.highest,
+						     simopts->random_value_interval.lowest);
+	}
+	else {
+		neuron_config_coupling_constant_set(simopts->coupling_constant);
+	}
+
+	file_table fs;
+	if (popts->print_neurons && popts->print_voltage_matrix) {
+		fs = file_table_create(popts->output_dir,
+						  simopts->neuron_count,
+						  1, "voltage_matrix.dat");
+	}
+	else if (popts->print_neurons) {
+		fs = file_table_create(popts->output_dir, simopts->neuron_count, 0);
+	}
+	else if (popts->print_voltage_matrix) {
+		fs = file_table_create(popts->output_dir, 0, 1, "voltage_matrix.dat");
+	}
+	else {
+		puts("Nothing to do.");
+		return 1;
+	}
+
 	if (!fs) {
 		puts("Fatal error: Could not create the file table.");
 		return 1;
 	}
-	
-	adj_matrix am = adj_matrix_create(neuron_count);
-	adj_matrix_set_custom(am, &adj_matrix_init_callback_lattice);
-	neural_network ns = neural_network_create(neuron_count, &neuron_init_callback_single_center, am);
+
+	adj_matrix am = adj_matrix_create(simopts->neuron_count);
+	adj_matrix_set_custom(am, simopts->network_callback);
+	neural_network ns = neural_network_create(simopts->neuron_count,
+						  simopts->neuron_callback,
+						  am);
+
+	uint grid_width = sqrt(simopts->neuron_count);
+	uint grid_height = sqrt(simopts->neuron_count);
 
 	timer timer = timer_begin();
-
-	double sim_time;
-	
-	while ((sim_time = neural_network_get_time(ns)) < final_time) {
+	double sim_time;	
+	while ((sim_time = neural_network_get_time(ns)) < popts->final_time) {
 		timer_print(timer, progress_print_interval,
 				    "Progress: %3d%%, Time elapsed: %9.2fs\n",
-				    (int)(100 * sim_time / final_time),
+				    (int)(100 * sim_time / popts->final_time),
 				    timer_total_get(timer));
-		if (math_utils_near_every(sim_time, time_step, 1.0)) {
-			if (options.print_neurons) {
+		if (math_utils_near_every(sim_time, simopts->time_step, popts->print_time)) {
+			if (popts->print_neurons) {
 				for (uint i = 0; i < neural_network_get_count(ns); i++) {	
 					file_table_index_print(fs, i, "%.10e %.10e %.10e %.10e %.10e\n",
 							       neural_network_get_time(ns),
@@ -678,11 +882,12 @@ int print_data_main(struct print_options options)
 							       neural_network_get_a_sr(ns, i));
 				}
 			}
-			if (options.print_voltage_matrix) {
-				file_table_special_print(fs, "voltage_matrix.dat", "#aside time = %f ms\n", sim_time);
-				for (uint row = 0; row < lattice_height; row++) {
-					for (uint col = 0; col < lattice_width; col++) {
-						file_table_special_print(fs, "voltage_matrix.dat", "%.10e ", neural_network_get_V(ns, row * lattice_width + col));
+			if (popts->print_voltage_matrix) {
+				file_table_special_print(fs, "voltage_matrix.dat",
+							 "#aside time = %f ms\n", sim_time);
+				for (uint row = 0; row < grid_height; row++) {
+					for (uint col = 0; col < grid_width; col++) {
+						file_table_special_print(fs, "voltage_matrix.dat", "%.10e ", neural_network_get_V(ns, row * grid_width + col));
 					}
 					file_table_special_print(fs, "voltage_matrix.dat", "\n");
 				}
@@ -690,7 +895,7 @@ int print_data_main(struct print_options options)
 			}
 		}
 		
-		neural_network_integrate(ns, time_step);
+		neural_network_integrate(ns, simopts->time_step);
 	}
 
 	timer_end(&timer, "Total elapsed time: %.2fs\n", timer_total_get(timer));
@@ -698,7 +903,7 @@ int print_data_main(struct print_options options)
 	adj_matrix_destroy(&am);
 	neural_network_destroy(&ns);
 	file_table_destroy(&fs);
-	
+#endif	
 	return 0;
 }
 
@@ -710,6 +915,7 @@ int print_version(void)
 
 int print_help(void)
 {
+#if 0
 	puts(version_statement);
 	puts(hrule);
 	puts("Listed below are the command line options that are available.");
@@ -731,6 +937,6 @@ int print_help(void)
 	for (const struct neuron_init_entry *n = neuron_init_entries; !is_neuron_init_entry_empty(*n); n++) {
 	       printf("%s\n%s\n\n", n->name, n->desc);
 	}
-	
+#endif	
 	return 0;
 }

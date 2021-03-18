@@ -1,6 +1,7 @@
 
 #include "headers/test_math_utils.h"
 #include "../headers/math_utils.h"
+#include "../headers/temp_memory.h"
 #include "headers/test_utils.h"
 
 bool test_math_utils_wrap_around(void)
@@ -47,4 +48,80 @@ bool test_math_utils_lattice_indices(void)
 
 	return test_1 && test_2 && test_3 && test_4 && test_5 && test_6
 		&& test_7 && test_8 && test_9;
+}
+
+double gravity = -9.81;
+static void *parameter_callback(dynamical_system ds, uint index)
+{
+	return &gravity;
+}
+static double coupling_callback(dynamical_system ds, uint first_index, uint second_index)
+{
+	return 0.0;
+}
+static void initial_values_callback(uint index, uint size, double *system_values)
+{
+	if (index == 0) {
+		system_values[0] = 0.0;
+		system_values[1] = 100.0;
+	}
+	else {
+		system_values[0] = 2.0;
+		system_values[1] = 50.0;
+	}	
+}
+static double dv_wrt_dt(dynamical_system ds, uint index)
+{
+	double *g = dynamical_system_get_parameters(ds, index);
+	return *g;
+}
+static double dx_wrt_dt(dynamical_system ds, uint index)
+{
+	return dynamical_system_get_value(ds, index, 0);
+}
+static double analytical_solution_x(double t, double initial_x, double initial_v)
+{
+	return 0.5*gravity*t*t + initial_v*t + initial_x;
+}
+
+bool test_math_utils_rk4_integrate(void)
+{
+	double step = 0.005;
+	const double tol = 1;
+	double (*derivatives[]) (dynamical_system, uint) = { &dv_wrt_dt, &dx_wrt_dt };
+
+	const double first_initial_v = 0.0;
+	const double first_initial_x = 100.0;
+	const double second_initial_v = 2.0;
+	const double second_initial_x = 50.0;
+	
+	dynamical_system free_fall_objects =
+		dynamical_system_create(2, 2,
+					parameter_callback,
+					coupling_callback,
+					initial_values_callback,
+					derivatives);     
+	
+	uint previous_allocations = current_number_of_allocations();
+
+	bool test_1 = true;
+	for (uint i = 0; i < 100; i++) {
+		double time = dynamical_system_get_time(free_fall_objects);
+		double first_a_x = analytical_solution_x(time, first_initial_x, first_initial_v);
+		double second_a_x = analytical_solution_x(time, second_initial_x, second_initial_v);
+		double first_d_x = dynamical_system_get_value(free_fall_objects, 0, 1);
+		double second_d_x = dynamical_system_get_value(free_fall_objects, 1, 1);
+		bool first_test = math_utils_equal_within_tolerance(first_a_x, first_d_x, tol);
+		bool second_test = math_utils_equal_within_tolerance(second_a_x, second_d_x, tol);
+		test_1 = test_1 && first_test && second_test;
+		math_utils_rk4_integrate(free_fall_objects, step);
+	}
+
+	temp_free();
+
+	dynamical_system_destroy(&free_fall_objects);
+	
+	bool test_2 = current_number_of_allocations() == previous_allocations;
+
+	return test_1 && test_2;
 }
