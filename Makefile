@@ -2,7 +2,7 @@
 .POSIX:
 
 CC = gcc
-CFLAGS = -std=c11 -g 
+CFLAGS = -std=c11 -g -O3 
 LDFLAGS = -lm -lSDL2 -lSDL2_ttf
 MKDIR = mkdir -p
 

@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#include "tests/headers/test_utils.h"
+
 struct dynamical_system {
 	double time;
 	uint system_size;

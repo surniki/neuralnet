@@ -8,5 +8,6 @@ bool test_math_utils_wrap_around(void);
 bool test_math_utils_equal_within_tolerance(void);
 bool test_math_utils_lattice_indices(void);
 bool test_math_utils_rk4_integrate(void);
+bool test_math_utils_rk4_integrate_9_constant_velocity(void);
 
 #endif

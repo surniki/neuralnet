@@ -4,9 +4,10 @@
 #include <math.h>
 #include <time.h>
 #include "headers/math_utils.h"
-#include "tests/headers/test_utils.h"
 #include "headers/dynamical_system.h"
 #include "headers/temp_memory.h"
+
+#include "tests/headers/test_utils.h"
 
 int math_utils_wrap_around(int given, int lower, int upper)
 {
@@ -66,15 +67,13 @@ double math_utils_random_number(double lowest, double highest)
 /* expects number_of_derivatives function pointers, double pointers */
 bool math_utils_rk4_integrate(dynamical_system ds, double step)
 {
-	size_t k_memory_size = dynamical_system_get_system_size(ds) *
-		dynamical_system_get_element_size(ds) * 4;
-	double *k_memory = temp_malloc((sizeof *k_memory) * k_memory_size);
-
-	double (**derivatives)(dynamical_system, uint) = dynamical_system_get_derivatives(ds);
 	uint system_size = dynamical_system_get_system_size(ds);
 	uint element_size = dynamical_system_get_element_size(ds);
+	double *k_memory = temp_malloc((sizeof *k_memory) * system_size * element_size * 4);
 
-#define k(i) k_memory[element + (i) * element_size + system * system_size]
+	double (**derivatives)(dynamical_system, uint) = dynamical_system_get_derivatives(ds);
+
+#define k(i) (k_memory[(i) * system_size * element_size + system * element_size + element])
 
 	/* first step: inputs x, y */
 	for (uint system = 0; system < system_size; system++) {
@@ -82,10 +81,9 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(0) = step * derivatives[element](ds, system);
 		}
 	}
-
-	/* second step: input x + step / 2, y + k1 / 2 */
-	dynamical_system_increment_time(ds, step / 2.0);
+		/* second step: input x + step / 2, y + k1 / 2 */
 	for (uint system = 0; system < system_size; system++) {
+		dynamical_system_increment_time(ds, step / 2.0);
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, k(0) / 2.0);
 		}
@@ -93,8 +91,7 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(1) = step * derivatives[element](ds, system);
 		}
 	}
-
-	/* third step: input x + step / 2, y + k2 / 2 */
+		/* third step: input x + step / 2, y + k2 / 2 */
 	for (uint system = 0; system < system_size; system++) {
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, (k(1) - k(0)) / 2.0);
@@ -103,10 +100,9 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(2) = step * derivatives[element](ds, system);
 		}
 	}
-
-	/* fourth step: input x + step, y + k3 */
-	dynamical_system_increment_time(ds, step / 2.0);
+		/* fourth step: input x + step, y + k3 */
 	for (uint system = 0; system < system_size; system++) {
+		dynamical_system_increment_time(ds, step / 2.0);
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, k(2) - (k(1) / 2.0));
 		}
@@ -114,8 +110,7 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(3) = step * derivatives[element](ds, system);
 		}
 	}
-
-	/* set the new values */
+		/* set the new values */
 	for (uint system = 0; system < system_size; system++) {
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, -k(2));
@@ -125,8 +120,7 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 							 k(2) / 3.0 +
 							 k(3) / 6.0);
 		}
-	}
-
+		
 	temp_release();
 #undef k
 }

@@ -11,8 +11,11 @@
 #include "headers/file_table.h"
 #include "headers/math_utils.h"
 #include "headers/neuron_config.h"
+#include "headers/dynamical_system.h"
+#include "headers/temp_memory.h"
 
 #define version_statement "neuralnet v0.2: March 2021, Scott Urnikis"
+
 #define hrule \
 	"////////////////////////////////////////" \
 	"////////////////////////////////////////"
@@ -65,7 +68,7 @@ static const struct data_entry parameter_callback_entries[] = {
 	(struct data_entry) {
 		.name = "huber-braun-double-center",
 		.desc = "Two tonic neurons in center, rest are bursting.",
-		.data = &huber_bruan_parameter_callback_double_center
+		.data = &huber_braun_parameter_callback_double_center
 	},
 	(struct data_entry) {
 		.name = "huber-braun-single-center",
@@ -82,7 +85,7 @@ static const struct data_entry parameter_callback_entries[] = {
 		.desc = "All neurons have the bursting profile.",
 		.data = &huber_braun_parameter_callback_bursting
 	},
-	(struct parameter_data_entry) {0}
+	(struct data_entry) {0}
 };
 
 static const struct data_entry coupling_callback_entries[] = {
@@ -117,18 +120,18 @@ static const struct data_entry model_entries[] = {
 	(struct data_entry) {
 		.name = "huber-braun",
 		.desc = "The Huber-Braun neuron model.",
-		.data = huber-braun-derivatives
+		.data = &huber_braun_model
 	},
 	(struct data_entry) {0}
-}
+};
 	
-bool is_entry_empty(const struct data_entry *entry)
+bool is_entry_empty(const struct data_entry *e)
 {
-	return e->name == (void *)0 && e->desc == (void *)0 && .data == (void *)0;
+	return e->name == (void *)0 && e->desc == (void *)0 && e->data == (void *)0;
 }
 
 #define for_entries(entry, entries) \
-	for (const data_entry entry = entries; !is_entry_empty(entry); entry++)
+	for (const struct data_entry *entry = entries; !is_entry_empty(entry); entry++)
 
 struct run_state {
 	enum RunStateType {
@@ -150,7 +153,7 @@ struct run_state {
 		void *(*parameter_callback)(dynamical_system, uint);
 		double (*coupling_callback)(dynamical_system, uint, uint);
 		void (*initial_values_callback)(uint, uint, double *);
-		double (**model)(dynamical_system ds, uint index);
+		struct dynamical_model *model;
 	} simopts;
 	struct print_options {
 		double final_time;
@@ -294,13 +297,6 @@ bool parse_time_step(const char ***args, struct run_state *rs)
 	return true;
 }
 
-/*
-  void *(*parameter_callback)(dynamical_system, uint);
-  double (*coupling_callback)(dynamical_system, uint, uint);
-  void (*initial_values_callback)(uint, uint, double *);
-  double (**derivatives)(dynamical_system ds, uint index);
- */
-
 bool parse_parameter_callback(const char ***args, struct run_state *rs)
 {
 	/* look for symbol in parameter_callback_entries */
@@ -327,7 +323,7 @@ bool parse_coupling_callback(const char ***args, struct run_state *rs)
 		return false;
 	}
 	for_entries(entry, coupling_callback_entries) {
-		if (!strcmp(entry->name, parameter_callback_name)) {
+		if (!strcmp(entry->name, coupling_callback_name)) {
 			rs->simopts.coupling_callback = entry->data;
 			*args += 2;
 			return true;
@@ -344,8 +340,8 @@ bool parse_initial_values_callback(const char ***args, struct run_state *rs)
 	if (!initial_values_callback_name) {
 		return false;
 	}
-	for_entries(entry, inital_value_callback_entries) {
-		if (!strcmp(entry->name, parameter_callback_name)) {
+	for_entries(entry, initial_values_callback_entries) {
+		if (!strcmp(entry->name, initial_values_callback_name)) {
 			rs->simopts.initial_values_callback = entry->data;
 			*args += 2;
 			return true;
@@ -668,9 +664,9 @@ static const struct run_state default_run_state = (const struct run_state) {
 	.simopts.neuron_count = 225,
 	.simopts.time_step = 0.1,
 	.simopts.parameter_callback = &huber_braun_parameter_callback_single_center,
-	.simopts.coupling_callback = &coupling_callback_lattice;
-	.simopts.initial_values_callback = &initial_values_callback_zero;
-	.simopts.model = huber_braun_model;
+	.simopts.coupling_callback = &coupling_callback_lattice,
+	.simopts.initial_values_callback = &initial_values_callback_zero,
+	.simopts.model = &huber_braun_model,
 	.popts.final_time = 10000,
 	.popts.print_time = 1,
 	.popts.output_dir = "output",
@@ -678,7 +674,7 @@ static const struct run_state default_run_state = (const struct run_state) {
 	.popts.print_voltage_matrix = true,
 	.vopts.screen_width = 800,
 	.vopts.screen_height = 800,
-	.vopts.fontpath = "res/LiberationMono-Regular.ttf"
+	.vopts.fontpath = "res/Monoid-Regular-NoCalt.ttf"
 };
 
 int print_help(void);
@@ -736,14 +732,119 @@ int main(int argc, const char **argv)
 	return 1;
 }
 
+const double low_voltage = -80.0;
+const double high_voltage = 20.0;
+const char *low_voltage_text = "-80.0";
+const char *high_voltage_text = "20.0";
+
+void clerp(double input, double low_input, double high_input, SDL_Color *low_color, SDL_Color *high_color, SDL_Color *out_color)
+{
+	out_color->r = math_utils_lerp(input, low_input, high_input, low_color->r, high_color->r);
+	out_color->g = math_utils_lerp(input, low_input, high_input, low_color->g, high_color->g);
+	out_color->b = math_utils_lerp(input, low_input, high_input, low_color->b, high_color->b);
+	out_color->a = 255;
+}
+
+void draw_color_map_cell(SDL_Renderer *renderer,
+			 SDL_Color *low_color, SDL_Color *high_color,
+			 uint x, uint y, uint width, uint height, double value)
+{
+	SDL_Color c;
+	clerp(value, low_voltage, high_voltage, low_color, high_color, &c);
+
+	SDL_Rect rect = (SDL_Rect) {
+		.x = x,
+		.y = y,
+		.w = width,
+		.h = height
+	};
+
+	SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
+	SDL_RenderFillRect(renderer, &rect);
+}
+
+void draw_legend(SDL_Renderer *renderer, TTF_Font *font,
+		 SDL_Color *low_color, SDL_Color *high_color,
+		 uint x, uint y, uint width, uint height)
+{
+	SDL_Surface *low_text_surface = TTF_RenderText_Solid(font, low_voltage_text, (SDL_Color){80, 80, 80, 255});
+	SDL_Surface *high_text_surface = TTF_RenderText_Solid(font, high_voltage_text, (SDL_Color){80, 80, 80, 255});
+	uint low_width = low_text_surface->w;
+	uint low_height = low_text_surface->h;
+	uint high_width = high_text_surface->w;
+	uint high_height = high_text_surface->h;
+	SDL_Texture *low_text_texture = SDL_CreateTextureFromSurface(renderer, low_text_surface);
+	SDL_Texture *high_text_texture = SDL_CreateTextureFromSurface(renderer, high_text_surface);
+	uint padding_width = 10;
+	uint color_bar_width = width - (low_width + high_width) - 2 * padding_width;
+	uint color_bar_height = height;
+	uint color_bar_x = x + low_width + padding_width;
+	uint color_bar_y = y;
+
+	SDL_Rect low_text_rect;
+	low_text_rect.x = x + padding_width / 2.0;
+	low_text_rect.y = (y + color_bar_height / 2.0) - (low_height / 2.0);
+	low_text_rect.w = low_width;
+	low_text_rect.h = low_height;
+
+	SDL_Rect high_text_rect;
+	high_text_rect.x = color_bar_x + color_bar_width + padding_width / 2.0;
+	high_text_rect.y = (y + color_bar_height / 2.0) - (low_height / 2.0);
+	high_text_rect.w = high_width;
+	high_text_rect.h = high_height;
+	
+	SDL_RenderCopy(renderer, low_text_texture, NULL, &low_text_rect);
+	SDL_RenderCopy(renderer, high_text_texture, NULL, &high_text_rect);
+
+	uint legend_start = color_bar_x;
+	uint legend_end = color_bar_x + color_bar_width;
+	for (uint x = legend_start; x <= legend_end; x++) {
+		SDL_Color c;
+		clerp(x, legend_start, legend_end, low_color, high_color, &c);
+		SDL_SetRenderDrawColor(renderer, c.r, c.g, c.b, 255);
+		SDL_Rect rect;
+		rect.x = x;
+		rect.y = color_bar_y;
+		rect.w = 1;
+		rect.h = color_bar_height;
+		SDL_RenderFillRect(renderer, &rect);
+	}
+
+	SDL_FreeSurface(low_text_surface);
+	SDL_FreeSurface(high_text_surface);
+	SDL_DestroyTexture(low_text_texture);
+	SDL_DestroyTexture(high_text_texture);
+}
+
 int visualize_main(struct simulation_options *simopts, struct visual_options *vopts)
 {	
-	SDL_Init(SDL_INIT_VIDEO);
-	TTF_Init();
-	SDL_Window *window = SDL_CreateWindow("neuralnet", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, vopts->screen_width, vopts->screen_height, 0);
-	TTF_Font *font = TTF_OpenFont("res/LiberationMono-Regular.ttf", 24);
-	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	if (SDL_Init(SDL_INIT_VIDEO)) {
+		puts("Unable to initialize video via SDL_Init. Exiting now.");
+		return 1;
+	}
+	if (TTF_Init()) {
+		puts("Unable to initialize text loading via TTF_Init. Exiting now.");
+		return 1;
+	}
 
+	SDL_Window *window = SDL_CreateWindow("neuralnet", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, vopts->screen_width, vopts->screen_height, 0);
+	if (!window) {
+		puts("Unable to create a window using SDL_CreateWindow. Exiting now.");
+		return 1;
+	}
+	
+	TTF_Font *font = TTF_OpenFont(vopts->fontpath, 24);
+	if (!font) {
+		printf("Unable to find the font located at [%s]. Exiting now.\n", vopts->fontpath);
+		return 1;
+	}
+
+	SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	if (!renderer) {
+		puts("Unable to create accelerated renderer using SDL_CreateRenderer. Exiting now.");
+		return 1;
+	}
+	
 	/* constuct the neural network */
 	if (simopts->coupling_constant_is_random) {
 		neuron_config_coupling_is_random_set(true,
@@ -754,14 +855,35 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 		neuron_config_coupling_constant_set(simopts->coupling_constant);
 	}
 
-	uint grid_width = sqrt(simopts->neuron_count);
-	uint grid_height = sqrt(simopts->neuron_count);
+	uint matrix_width = sqrt(simopts->neuron_count);
+	uint matrix_height = sqrt(simopts->neuron_count);
 
 	double sim_time = 0.0;
-	
+
+	dynamical_system ds = dynamical_system_create(simopts->neuron_count,
+						      simopts->model->number_of_variables,
+						      simopts->parameter_callback,
+						      simopts->coupling_callback,
+						      simopts->initial_values_callback,
+						      simopts->model->derivatives);
+
 	bool running = true;
+	uint frame_step = 1;
 	uint millis_per_frame = 1000 / 60;
 	uint start_time_millis, end_time_millis;
+
+	SDL_Color low_color;
+	low_color.r = 122;
+	low_color.g = 31;
+	low_color.b = 110;
+
+	SDL_Color high_color;
+	high_color.r = 184;
+	high_color.g = 172;
+	high_color.b = 9;
+
+	uint header_height = 100;
+	
 	while (running) {
 		start_time_millis = SDL_GetTicks();
 		SDL_Event e;
@@ -776,16 +898,18 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 					running = false;
 				}
 				else if (scancode == SDL_SCANCODE_UP) {
-					
+					frame_step++;
 				}
 				else if (scancode == SDL_SCANCODE_DOWN) {
-					
+					if (frame_step > 1) {
+						frame_step--;
+					}
 				}
 				else if (scancode == SDL_SCANCODE_LEFT) {
-					
+					math_utils_rk4_integrate(ds, frame_step * -simopts->time_step);
 				}
 				else if (scancode == SDL_SCANCODE_RIGHT) {
-					
+					math_utils_rk4_integrate(ds, frame_step * simopts->time_step);
 				}
 				break;
 			}
@@ -794,15 +918,48 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 				break;
 			}
 		}
+
 		SDL_SetRenderTarget(renderer, NULL);
 		SDL_SetRenderDrawColor(renderer, 220, 210, 190, 255);
 		SDL_RenderClear(renderer);
 		
 		/* draw the heat map cells representing the voltage of each neuron */
+		for (uint row = 0; row < matrix_height; row++) {
+			for (uint col = 0; col < matrix_width; col++) {
+				double cell_width = vopts->screen_width / (double)matrix_width;
+				double cell_height = (vopts->screen_height - header_height) / (double)matrix_height;
+				draw_color_map_cell(renderer, &low_color, &high_color,
+						    ceill(col * cell_width),
+						    ceill(header_height + row * cell_height),
+						    ceill(cell_width),
+						    ceill(cell_height),
+						    dynamical_system_get_value(ds, row * matrix_width + col, 0));
+						    
+			}
+		}
 
 		/* draw header information */
-
+		double sim_time = dynamical_system_get_time(ds);
+		char message[512];
+		snprintf(message, 512, "Time: %.2fms -- Frame Step: %.2fms", sim_time, simopts->time_step * frame_step);
+		SDL_Surface *text_surface = TTF_RenderText_Solid(font, message, (SDL_Color){80, 80, 80, 255});
+		SDL_Texture *text_texture = SDL_CreateTextureFromSurface(renderer, text_surface);
+		uint message_width = text_surface->w;
+		uint message_height = text_surface->h;
+		SDL_Rect text_rect;
+		text_rect.x = 0;
+		text_rect.y = 0;
+		text_rect.w = message_width;
+		text_rect.h = message_height;
+		
+		SDL_RenderCopy(renderer, text_texture, NULL, &text_rect);
+		draw_legend(renderer, font, &low_color, &high_color, 0, message_height, 800, 50);
+		
 		SDL_RenderPresent(renderer);
+
+		SDL_FreeSurface(text_surface);
+		SDL_DestroyTexture(text_texture);
+
 		end_time_millis = SDL_GetTicks();
 		uint duration_millis = start_time_millis - end_time_millis;
 		if (duration_millis > millis_per_frame) {
@@ -816,12 +973,14 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 	TTF_Quit();
 	SDL_Quit();
 
+	dynamical_system_destroy(&ds);
+	temp_free();
+
 	return 0;
 }
 
 int print_data_main(struct simulation_options *simopts, struct print_options *popts)
 {
-#if 0
 	const double progress_print_interval = 1.0;
 
 	if (simopts->coupling_constant_is_random) {
@@ -855,31 +1014,35 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 		return 1;
 	}
 
-	adj_matrix am = adj_matrix_create(simopts->neuron_count);
-	adj_matrix_set_custom(am, simopts->network_callback);
-	neural_network ns = neural_network_create(simopts->neuron_count,
-						  simopts->neuron_callback,
-						  am);
-
+	dynamical_system ds = dynamical_system_create(simopts->neuron_count,
+						      simopts->model->number_of_variables,
+						      simopts->parameter_callback,
+						      simopts->coupling_callback,
+						      simopts->initial_values_callback,
+						      simopts->model->derivatives);
+						      
+						      
 	uint grid_width = sqrt(simopts->neuron_count);
 	uint grid_height = sqrt(simopts->neuron_count);
 
 	timer timer = timer_begin();
+
 	double sim_time;	
-	while ((sim_time = neural_network_get_time(ns)) < popts->final_time) {
+	while ((sim_time = dynamical_system_get_time(ds)) < popts->final_time) {
 		timer_print(timer, progress_print_interval,
 				    "Progress: %3d%%, Time elapsed: %9.2fs\n",
 				    (int)(100 * sim_time / popts->final_time),
 				    timer_total_get(timer));
 		if (math_utils_near_every(sim_time, simopts->time_step, popts->print_time)) {
 			if (popts->print_neurons) {
-				for (uint i = 0; i < neural_network_get_count(ns); i++) {	
+				for (uint i = 0; i < dynamical_system_get_system_size(ds); i++) {	
 					file_table_index_print(fs, i, "%.10e %.10e %.10e %.10e %.10e\n",
-							       neural_network_get_time(ns),
-							       neural_network_get_V(ns, i),
-							       neural_network_get_a_K(ns, i),
-							       neural_network_get_a_sd(ns, i),
-							       neural_network_get_a_sr(ns, i));
+							       dynamical_system_get_time(ds),
+							       dynamical_system_get_value(ds, i, 0),
+							       dynamical_system_get_value(ds, i, 1),
+							       dynamical_system_get_value(ds, i, 2),
+							       dynamical_system_get_value(ds, i, 3));
+
 				}
 			}
 			if (popts->print_voltage_matrix) {
@@ -887,7 +1050,8 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 							 "#aside time = %f ms\n", sim_time);
 				for (uint row = 0; row < grid_height; row++) {
 					for (uint col = 0; col < grid_width; col++) {
-						file_table_special_print(fs, "voltage_matrix.dat", "%.10e ", neural_network_get_V(ns, row * grid_width + col));
+						file_table_special_print(fs, "voltage_matrix.dat", "%.10e ",
+									 dynamical_system_get_value(ds, row * grid_width + col, 0));
 					}
 					file_table_special_print(fs, "voltage_matrix.dat", "\n");
 				}
@@ -895,15 +1059,15 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 			}
 		}
 		
-		neural_network_integrate(ns, simopts->time_step);
+		math_utils_rk4_integrate(ds, simopts->time_step);
 	}
 
 	timer_end(&timer, "Total elapsed time: %.2fs\n", timer_total_get(timer));
 	
-	adj_matrix_destroy(&am);
-	neural_network_destroy(&ns);
+	dynamical_system_destroy(&ds);
 	file_table_destroy(&fs);
-#endif	
+	temp_free();
+	
 	return 0;
 }
 
@@ -915,28 +1079,42 @@ int print_version(void)
 
 int print_help(void)
 {
-#if 0
 	puts(version_statement);
+
 	puts(hrule);
 	puts("Listed below are the command line options that are available.");
 	puts(hrule);
-	for (const struct command_line_option *o = command_line_entries;
-	     !is_command_line_entry_empty(*o);
-	     o++) {
+	for_options (o, command_line_options) {
 		printf("%s\n%s\n\n", o->option, o->desc);
 	}
+
 	puts(hrule);
-	puts("Available values to use with the \"--network-callback\" option:");
+	puts("Available values to use with the \"--parameter-callback\" option:");
 	puts(hrule);
-       for (const struct adj_matrix_init_entry *a = adj_matrix_init_entries; !is_adj_matrix_init_entry_empty(*a); a++) {
-	       printf("%s\n%s\n\n", a->name, a->desc);
-       }
-	puts(hrule);
-	puts("Available values to use with the \"--neuron-callback\" option:");
-	puts(hrule);
-	for (const struct neuron_init_entry *n = neuron_init_entries; !is_neuron_init_entry_empty(*n); n++) {
-	       printf("%s\n%s\n\n", n->name, n->desc);
+	for_entries (entry, parameter_callback_entries) {
+	       printf("%s\n%s\n\n", entry->name, entry->desc);
 	}
-#endif	
+
+	puts(hrule);
+	puts("Available values to use with the \"--coupling-callback\" option:");
+	puts(hrule);
+	for_entries (entry, coupling_callback_entries) {
+		printf("%s\n%s\n\n", entry->name, entry->desc);
+	}
+
+	puts(hrule);
+	puts("Available values to use with the \"--initial-values-callback\" option:");
+	puts(hrule);
+	for_entries (entry, initial_values_callback_entries) {
+		printf("%s\n%s\n\n", entry->name, entry->desc);
+	}
+
+	puts(hrule);
+	puts("Available values to use with the \"--model\" option:");
+	puts(hrule);
+	for_entries (entry, model_entries) {
+		printf("%s\n%s\n\n", entry->name, entry->desc);
+	}
+
 	return 0;
 }

@@ -12,6 +12,8 @@ void math_utils_lattice_indices(uint i, uint width, uint height,
 				uint *top, uint *right, uint *bottom, uint *left);
 bool math_utils_near_every(double value, float increment, float target_divisor);
 double math_utils_random_number(double lowest, double highest);
+double math_utils_lerp(double input,
+		       double low_input, double high_input, double low_output, double high_output);
 bool math_utils_rk4_integrate(dynamical_system ds, double step);
 
 #endif

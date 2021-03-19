@@ -5,6 +5,8 @@
 #include "headers/math_utils.h"
 #include "headers/neuron_config.h"
 
+#include "tests/headers/test_utils.h"
+
 bool coupling_constant_is_random;
 double lowest_random_value;
 double highest_random_value;
@@ -37,16 +39,6 @@ static double not_coupled()
 	return 0.0;
 }
 
-bool is_neuron_init_entry_empty(struct neuron_init_entry e)
-{
-	return e.name == (void *)0 && e.desc == (void *)0 && e.callback == (void *)0;
-}
-
-bool is_adj_matrix_init_entry_empty(struct adj_matrix_init_entry e)
-{
-	return e.name == (void *)0 && e.desc == (void *)0 && e.callback == (void *)0;
-}
-
 struct huber_braun_profile  {
 	double I_inj, C, g_leak, V_leak, rho, g_Na, V_Na, g_K, V_K, g_sd, V_sd,
 		g_sr, V_sr, s_Na, V_0Na, phi, tau_K, tau_sd, tau_sr, v_acc, v_dep,
@@ -64,8 +56,8 @@ double huber_braun_dV_wrt_dt(dynamical_system ds, uint index)
 	double a_K  = dynamical_system_get_value(ds, index, 1);
 	double a_sd = dynamical_system_get_value(ds, index, 2);
 	double a_sr = dynamical_system_get_value(ds, index, 3);
-	
-	double I_coupling = 0.0;	
+
+	double I_coupling = 0.0;
 	for (uint col = 0; col < dynamical_system_get_system_size(ds); col++) {
 		double g_c = dynamical_system_get_coupling(ds, index, col);
 		if (g_c != 0.0) {	
@@ -73,7 +65,7 @@ double huber_braun_dV_wrt_dt(dynamical_system ds, uint index)
 			I_coupling += g_c * (V - coupled_V);
 		}
 	}
-
+	
 	const double I_leak = nrn->g_leak * (V - nrn->V_leak);
 	const double a_Na   = 1.0 / (1.0 + exp(-nrn->s_Na * (V - nrn->V_0Na)));
 
@@ -133,11 +125,14 @@ double huber_braun_da_sr_wrt_dt(dynamical_system ds, uint index)
 	return -(nrn->phi / nrn->tau_sr) * (nrn->v_acc * I_sd + nrn->v_dep * a_sr);
 }
 
-double (*huber_braun_model[])(dynamical_system ds, uint index) = {
-	&huber_braun_dV_wrt_dt,
-	&huber_braun_da_K_wrt_dt,
-	&huber_braun_da_sd_wrt_dt,
-	&huber_braun_da_sr_wrt_dt	
+struct dynamical_model huber_braun_model = (struct dynamical_model) {
+	.derivatives = (double (*[])(dynamical_system ds, uint index)) {
+		&huber_braun_dV_wrt_dt,
+		&huber_braun_da_K_wrt_dt,
+		&huber_braun_da_sd_wrt_dt,
+		&huber_braun_da_sr_wrt_dt
+	},
+	.number_of_variables = 4
 };
 	
 static struct huber_braun_profile tonic_profile = {
