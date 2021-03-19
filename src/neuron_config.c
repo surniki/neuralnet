@@ -58,11 +58,12 @@ double huber_braun_dV_wrt_dt(dynamical_system ds, uint index)
 	double a_sr = dynamical_system_get_value(ds, index, 3);
 
 	double I_coupling = 0.0;
-	for (uint col = 0; col < dynamical_system_get_system_size(ds); col++) {
-		double g_c = dynamical_system_get_coupling(ds, index, col);
-		if (g_c != 0.0) {	
-			double coupled_V = dynamical_system_get_value(ds, col, 0);
-			I_coupling += g_c * (V - coupled_V);
+	uint edges_found;
+	if ((edges_found = dynamical_system_get_coupling(ds, index))) {
+		const struct edge *edges = dynamical_system_get_edge_pool(ds);
+		for (uint i = 0; i < edges_found; i++) {
+			double coupled_V = dynamical_system_get_value(ds, edges[i].index, 0);
+			I_coupling += edges[i].value * (V - coupled_V);
 		}
 	}
 	
@@ -229,37 +230,44 @@ void *huber_braun_parameter_callback_bursting(dynamical_system ds, uint index)
 }
 
 void *huber_braun_parameter_callback_tonic(dynamical_system ds, uint index)
-{
+{	
 	return &tonic_profile;
 }
 
-double coupling_callback_empty(dynamical_system ds, uint first_index, uint second_index)
+uint coupling_callback_empty(dynamical_system ds, uint first_index)
 {
-	return not_coupled(); 
+	return 0; 
 }
 
-double coupling_callback_lattice(dynamical_system ds, uint first_index, uint second_index)
+uint coupling_callback_complete(dynamical_system ds, uint first_index)
 {
-	uint top, right, bottom, left;
+	struct edge *edge_pool = dynamical_system_get_edge_pool(ds);
+	uint edge_pool_size = dynamical_system_get_edge_pool_size(ds);
+
+	for (uint i = 0; i < edge_pool_size; i++) {
+		edge_pool[i].index = (i >= first_index) ? i + 1 : i;
+		edge_pool[i].value = coupled();
+	}
+
+	return edge_pool_size;
+}
+
+uint coupling_callback_lattice(dynamical_system ds, uint first_index)
+{
+	assert(dynamical_system_get_edge_pool_size(ds) >= 4);
+
+	struct edge *edge_pool = dynamical_system_get_edge_pool(ds);
 	uint side_length = sqrt(dynamical_system_get_system_size(ds));
 	math_utils_lattice_indices(first_index, side_length, side_length,
-				   &top, &right, &bottom, &left);
+				   &(edge_pool[0].index),
+				   &(edge_pool[1].index),
+				   &(edge_pool[2].index),
+				   &(edge_pool[3].index));
 
-	if (second_index == top    ||
-	    second_index == right  ||
-	    second_index == bottom ||
-	    second_index == left) {
-		return coupled();
-	}
+	edge_pool[0].value = coupled();
+	edge_pool[1].value = coupled();
+	edge_pool[2].value = coupled();
+	edge_pool[3].value = coupled();
 
-	return not_coupled();
-}
-
-double coupling_callback_complete(dynamical_system ds, uint first_index, uint second_index)
-{
-	if (first_index == second_index) {
-		return not_coupled();
-	}
-
-	return coupled();
+	return 4;
 }

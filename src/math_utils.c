@@ -81,9 +81,9 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(0) = step * derivatives[element](ds, system);
 		}
 	}
-		/* second step: input x + step / 2, y + k1 / 2 */
+	/* second step: input x + step / 2, y + k1 / 2 */
+	dynamical_system_increment_time(ds, step / 2.0);
 	for (uint system = 0; system < system_size; system++) {
-		dynamical_system_increment_time(ds, step / 2.0);
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, k(0) / 2.0);
 		}
@@ -91,7 +91,7 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(1) = step * derivatives[element](ds, system);
 		}
 	}
-		/* third step: input x + step / 2, y + k2 / 2 */
+	/* third step: input x + step / 2, y + k2 / 2 */
 	for (uint system = 0; system < system_size; system++) {
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, (k(1) - k(0)) / 2.0);
@@ -100,9 +100,9 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 			k(2) = step * derivatives[element](ds, system);
 		}
 	}
-		/* fourth step: input x + step, y + k3 */
+	/* fourth step: input x + step, y + k3 */
+	dynamical_system_increment_time(ds, step / 2.0);
 	for (uint system = 0; system < system_size; system++) {
-		dynamical_system_increment_time(ds, step / 2.0);
 		for (uint element = 0; element < element_size; element++) {
 			dynamical_system_increment_value(ds, system, element, k(2) - (k(1) / 2.0));
 		}
@@ -120,6 +120,7 @@ bool math_utils_rk4_integrate(dynamical_system ds, double step)
 							 k(2) / 3.0 +
 							 k(3) / 6.0);
 		}
+	}
 		
 	temp_release();
 #undef k

@@ -10,17 +10,17 @@ struct dynamical_system {
 	uint system_size;
 	uint element_size;
 	void *(*parameter_callback)(dynamical_system ds, uint index);
-	double (*coupling_callback)(dynamical_system ds, uint first_index, uint second_index);
+	uint (*coupling_callback)(dynamical_system ds, uint first_index);
 	double (**derivatives)(dynamical_system ds, uint system);
+	struct edge *edge_pool;
 	double elements[];
 };
 
 dynamical_system dynamical_system_create(uint system_size, uint element_size,
 					 void *(*parameter_callback)(dynamical_system ds,
 								    uint index),
-					 double (*coupling_callback)(dynamical_system ds,
-								     uint first_index,
-								     uint second_index),
+					 uint (*coupling_callback)(dynamical_system ds,
+								   uint first_index),
 					 void (*initial_values_callback)(uint index,
 									 uint size,
 									 double *system_values),
@@ -38,6 +38,7 @@ dynamical_system dynamical_system_create(uint system_size, uint element_size,
 	result->parameter_callback = parameter_callback;
 	result->coupling_callback = coupling_callback;
 	result->derivatives = derivatives;
+	result->edge_pool = malloc((sizeof *(result->edge_pool)) * system_size - 1);
 
 	for (uint row = 0; row < system_size; row++) {
 		initial_values_callback(row, element_size, &result->elements[row * element_size]);
@@ -48,6 +49,7 @@ dynamical_system dynamical_system_create(uint system_size, uint element_size,
 
 void dynamical_system_destroy(dynamical_system *ds)
 {
+	free((*ds)->edge_pool);
 	free(*ds);
 	*ds = NULL;
 }
@@ -106,7 +108,17 @@ void *dynamical_system_get_parameters(dynamical_system ds, uint index)
 	return ds->parameter_callback(ds, index);
 }
 
-double dynamical_system_get_coupling(dynamical_system ds, uint first_index, uint second_index)
+uint dynamical_system_get_coupling(dynamical_system ds, uint first_index)
 {
-	return ds->coupling_callback(ds, first_index, second_index);
+	return ds->coupling_callback(ds, first_index);
+}
+
+struct edge *dynamical_system_get_edge_pool(dynamical_system ds)
+{
+	return ds->edge_pool;
+}
+
+uint dynamical_system_get_edge_pool_size(dynamical_system ds)
+{
+	return ds->system_size - 1;
 }

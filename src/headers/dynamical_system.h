@@ -7,12 +7,16 @@
 struct dynamical_system;
 typedef struct dynamical_system *dynamical_system;
 
+struct edge {
+	uint index;
+	double value;
+};
+
 dynamical_system dynamical_system_create(uint system_size, uint element_size,
 					 void *(*parameter_callback)(dynamical_system ds,
 								    uint index),
-					 double (*coupling_callback)(dynamical_system ds,
-								     uint first_index,
-								     uint second_index),
+					 uint (*coupling_callback)(dynamical_system ds,
+								   uint first_index),
 					 void (*initial_values_callback)(uint index,
 									 uint size,
 									 double *system_values),
@@ -27,7 +31,9 @@ uint dynamical_system_get_system_size(dynamical_system ds);
 uint dynamical_system_get_element_size(dynamical_system ds);
 double (**dynamical_system_get_derivatives(dynamical_system ds))(dynamical_system ds, uint system);
 void *dynamical_system_get_parameters(dynamical_system ds, uint index);
-double dynamical_system_get_coupling(dynamical_system ds, uint first_index, uint second_index);
+uint dynamical_system_get_coupling(dynamical_system ds, uint first_index);
 void dynamical_system_destroy(dynamical_system *ds);
+struct edge *dynamical_system_get_edge_pool(dynamical_system ds);
+uint dynamical_system_get_edge_pool_size(dynamical_system ds);
 
 #endif

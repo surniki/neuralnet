@@ -151,7 +151,7 @@ struct run_state {
 		uint neuron_count;
 		double time_step;
 		void *(*parameter_callback)(dynamical_system, uint);
-		double (*coupling_callback)(dynamical_system, uint, uint);
+		uint (*coupling_callback)(dynamical_system, uint);
 		void (*initial_values_callback)(uint, uint, double *);
 		struct dynamical_model *model;
 	} simopts;

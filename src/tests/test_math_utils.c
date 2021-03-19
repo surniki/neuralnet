@@ -55,9 +55,9 @@ static void *free_fall_parameter_callback(dynamical_system ds, uint index)
 {
 	return &gravity;
 }
-static double free_fall_coupling_callback(dynamical_system ds, uint first_index, uint second_index)
+static uint free_fall_coupling_callback(dynamical_system ds, uint first_index)
 {
-	return 0.0;
+	return 0;
 }
 static void free_fall_initial_values_callback(uint index, uint size, double *system_values)
 {
@@ -132,9 +132,9 @@ static void *constant_parameter_callback(dynamical_system ds, uint index)
 {
 	return &velocity;
 }
-static double constant_coupling_callback(dynamical_system ds, uint first_index, uint second_index)
+static uint constant_coupling_callback(dynamical_system ds, uint first_index)
 {
-	return 0.0;
+	return 0;
 }
 static void constant_initial_values_callback(uint index, uint size, double *system_values)
 {

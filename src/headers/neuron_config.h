@@ -19,8 +19,8 @@ void *huber_braun_parameter_callback_single_center(dynamical_system ds, uint ind
 void *huber_braun_parameter_callback_bursting(dynamical_system ds, uint index);
 void *huber_braun_parameter_callback_tonic(dynamical_system ds, uint index);
 
-double coupling_callback_empty(dynamical_system ds, uint first_index, uint second_index);
-double coupling_callback_lattice(dynamical_system ds, uint first_index, uint second_index);
-double coupling_callback_complete(dynamical_system ds, uint first_index, uint second_index);
+uint coupling_callback_empty(dynamical_system ds, uint first_index);
+uint coupling_callback_lattice(dynamical_system ds, uint first_index);
+uint coupling_callback_complete(dynamical_system ds, uint first_index);
 
 #endif
