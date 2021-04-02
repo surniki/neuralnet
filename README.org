@@ -1,5 +1,42 @@
 
 * neuralnet: Biophysical Neural Net Simulation
 
-#+html: <p align="center"><img src="images/wave-cancellation.gif" width="400px" /></p>
+#+html: <p align="center"><img src="wave_cancellation.gif" width="400" /></p>
 
+  The /neuralnet/ program is meant to be used for exploring the
+  behavior of biophysical neural networks by allowing systems to be
+  described by the user from the command line. It is meant to allow
+  the user to quickly see how a system behaves. It supports outputting
+  data files for the simulation (using the ~--output-data~ flag),
+  which include the dynamical variables as well as interpretations of
+  the data such as a voltage matrix and a raster plot data file for
+  plotting when an action potential occurs in the network.
+
+  Another option that is available is to use the ~--visualize~ flag to
+  be able to see the time evolution of the system graphically. The
+  right arrow key simulates the system forward in time and the up
+  arrow key and down arrow key increases and decreases the time step
+  used in the numerical integration respectively. The animation above
+  is an example of this mode of the program being used.
+
+** Building from source
+   Because of the ~--visualize~ option, this project depends on the
+   SDL2 and SDL2_ttf libraries. This program has been tested on Linux,
+   namely Debian and Fedora. 
+  
+   On Debian:
+   #+begin_src sh
+     sudo apt install libsdl2-dev libsdl2-ttf-dev
+   #+end_src
+
+   On Fedora:
+   #+begin_src sh
+     sudo dnf install SDL2-devel SDL2_ttf-devel
+   #+end_src
+   
+   Once the development libraries have been installed, the program can
+   be compiled using the Makefile.
+   
+   #+begin_src sh
+     make && ./bin/test_neuralnet
+   #+end_src
