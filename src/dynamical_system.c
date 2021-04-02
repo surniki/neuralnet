@@ -8,6 +8,8 @@
 struct dynamical_system {
 	double time;
 	uint system_size;
+	uint grid_width;
+	uint grid_height;
 	uint element_size;
 	void *(*parameter_callback)(dynamical_system ds, uint index);
 	uint (*coupling_callback)(dynamical_system ds, uint first_index);
@@ -16,7 +18,7 @@ struct dynamical_system {
 	double elements[];
 };
 
-dynamical_system dynamical_system_create(uint system_size, uint element_size,
+dynamical_system dynamical_system_create(uint system_size, uint grid_width, uint grid_height, uint element_size,
 					 void *(*parameter_callback)(dynamical_system ds,
 								    uint index),
 					 uint (*coupling_callback)(dynamical_system ds,
@@ -34,6 +36,8 @@ dynamical_system dynamical_system_create(uint system_size, uint element_size,
 
 	result->time = 0.0;
 	result->system_size = system_size;
+	result->grid_width = grid_width;
+	result->grid_height = grid_height;
 	result->element_size = element_size;
 	result->parameter_callback = parameter_callback;
 	result->coupling_callback = coupling_callback;
@@ -121,4 +125,14 @@ struct edge *dynamical_system_get_edge_pool(dynamical_system ds)
 uint dynamical_system_get_edge_pool_size(dynamical_system ds)
 {
 	return ds->system_size - 1;
+}
+
+uint dynamical_system_get_grid_width(dynamical_system ds)
+{
+	return ds->grid_width;
+}
+
+uint dynamical_system_get_grid_height(dynamical_system ds)
+{
+	return ds->grid_height;
 }

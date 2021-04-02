@@ -12,7 +12,7 @@ struct edge {
 	double value;
 };
 
-dynamical_system dynamical_system_create(uint system_size, uint element_size,
+dynamical_system dynamical_system_create(uint system_size, uint grid_width, uint grid_height, uint element_size,
 					 void *(*parameter_callback)(dynamical_system ds,
 								    uint index),
 					 uint (*coupling_callback)(dynamical_system ds,
@@ -35,5 +35,7 @@ uint dynamical_system_get_coupling(dynamical_system ds, uint first_index);
 void dynamical_system_destroy(dynamical_system *ds);
 struct edge *dynamical_system_get_edge_pool(dynamical_system ds);
 uint dynamical_system_get_edge_pool_size(dynamical_system ds);
+uint dynamical_system_get_grid_width(dynamical_system ds);
+uint dynamical_system_get_grid_height(dynamical_system ds);
 
 #endif

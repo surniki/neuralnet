@@ -1,2 +1,5 @@
 
 * neuralnet: Biophysical Neural Net Simulation
+
+#+html: <p align="center"><img src="images/wave-cancellation.gif" width="400px" /></p>
+

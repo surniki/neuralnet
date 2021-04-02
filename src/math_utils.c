@@ -38,6 +38,21 @@ void math_utils_lattice_indices(uint i, uint width, uint height,
 	*left = math_utils_wrap_around(i - 1, width * (i / width), (1 + (i / width)) * width - 1);
 }
 
+void math_utils_all_neighbors_indices(uint i, uint width, uint height,
+				      uint *top, uint *right, uint *bottom, uint *left,
+				      uint *top_left, uint *top_right, uint *bottom_right, uint *bottom_left)
+{
+	*top = math_utils_wrap_around(i - width, 0, width * height - 1);
+	*right = math_utils_wrap_around(i + 1, width * (i / width), (1 + (i / width)) * width - 1);
+	*bottom = math_utils_wrap_around(i + width, 0, width * height - 1);
+	*left = math_utils_wrap_around(i - 1, width * (i / width), (1 + (i / width)) * width - 1);
+
+	*top_left = math_utils_wrap_around(*top - 1, (*top / width) * width, (*top / width) * width + (width - 1));
+	*top_right = math_utils_wrap_around(*top + 1, (*top / width) * width, (*top / width) * width + (width - 1));
+	*bottom_left = math_utils_wrap_around(*bottom - 1, (*bottom / width) * width, (*bottom / width) * width + (width - 1));
+	*bottom_right = math_utils_wrap_around(*bottom + 1, (*bottom / width) * width, (*bottom / width) * width + (width - 1));
+}
+
 bool math_utils_near_every(double value, float increment, float target_divisor)
 {
 	const double tolerance = increment / 2;

@@ -14,6 +14,10 @@
 #include "headers/dynamical_system.h"
 #include "headers/temp_memory.h"
 
+/* TODO: Make the file printing for the individual objects depend on
+ *       the number of dynamical variables in the model.
+ */
+
 #define version_statement "neuralnet v0.2: March 2021, Scott Urnikis"
 
 #define hrule \
@@ -58,7 +62,6 @@
 #define print_neurons_desc "Toggle for printing the neuron data files individually."
 #define print_voltage_matrix_desc  "Toggle for printing the voltage matrix file."
 
-
 struct data_entry {
 	const char *name, *desc;
 	void *data;
@@ -85,6 +88,11 @@ static const struct data_entry parameter_callback_entries[] = {
 		.desc = "All neurons have the bursting profile.",
 		.data = &huber_braun_parameter_callback_bursting
 	},
+	(struct data_entry) {
+		.name = "fitzhugh-nagumo-single-center",
+		.desc = "Center is firing, rest are resting.",
+		.data = &fitzhugh_nagumo_parameter_callback_single_center
+	},
 	(struct data_entry) {0}
 };
 
@@ -104,7 +112,22 @@ static const struct data_entry coupling_callback_entries[] = {
 		.desc = "Neurons are coupled with their four nearest neighbors.",
 		.data = &coupling_callback_lattice
 	},
-	(struct data_entry) {0}	
+	(struct data_entry) {
+		.name = "lattice-nowrap",
+		.desc = "Neurons are coupled with their four nearest neighbors but the borders do not wrap.",
+		.data = &coupling_callback_lattice_nowrap
+	},
+	(struct data_entry) {
+		.name = "line",
+		.desc = "Neurons are coupled with their two neighbors when placed in a circular loop from left to right.",
+		.data = &coupling_callback_line
+	},
+	(struct data_entry) {
+		.name = "all-neighbors",
+		.desc = "Neurons are coupled with their eight neighbors.",
+		.data = &coupling_callback_all_neighbors
+	},
+	(struct data_entry) {0}
 };
 
 static const struct data_entry initial_values_callback_entries[] = {
@@ -121,6 +144,11 @@ static const struct data_entry model_entries[] = {
 		.name = "huber-braun",
 		.desc = "The Huber-Braun neuron model.",
 		.data = &huber_braun_model
+	},
+	(struct data_entry) {
+		.name = "fitzhugh-nagumo",
+		.desc = "The Fitzhugh-Nagumo neuron model.",
+		.data = &fitzhugh_nagumo_model
 	},
 	(struct data_entry) {0}
 };
@@ -149,6 +177,8 @@ struct run_state {
 			double lowest;
 		} random_value_interval;
 		uint neuron_count;
+		uint grid_width;
+		uint grid_height;
 		double time_step;
 		void *(*parameter_callback)(dynamical_system, uint);
 		uint (*coupling_callback)(dynamical_system, uint);
@@ -161,11 +191,17 @@ struct run_state {
 		const char *output_dir;
 		bool print_neurons;
 		bool print_voltage_matrix;
+		bool print_raster_plot;
 	} popts;
 	struct visual_options {
 		uint screen_width;
 		uint screen_height;
 		const char *fontpath;
+		double low_matrix_value;
+		double high_matrix_value;
+		struct color {
+			uint r, g, b;
+		} high_color, low_color;
 	} vopts;
 };
 
@@ -229,6 +265,108 @@ bool parse_random_coupling(const char ***args, struct run_state *rs)
 	return true;
 }
 
+bool parse_visualize_matrix_range(const char ***args, struct run_state *rs)
+{
+	/* parse two real numbers */
+	const char *first_str = (*args)[1];
+	if (!first_str) {
+		return false;
+	}
+	const char *second_str = (*args)[2];
+	if (!second_str) {
+		return false;
+	}
+	char *end_first, *end_second;
+	double first = strtod(first_str, &end_first);
+	double second = strtod(second_str, &end_second);
+       	double low = (first < second) ? first : second;
+	double high = (first > second) ? first : second;
+
+	if (*end_first != '\0' || *end_second != '\0') {
+		return false;
+	}
+	if (low == high) {
+		return false;
+	}
+
+	rs->vopts.high_matrix_value = high;
+	rs->vopts.low_matrix_value = low;
+
+	*args += 3;
+	return true;
+}
+
+bool parse_visualize_color_range(const char ***args, struct run_state *rs)
+{
+	/* parse six u8 numbers */
+	const char *first_str = (*args)[1];
+	if (!first_str) {
+		return false;
+	}
+	const char *second_str = (*args)[2];
+	if (!second_str) {
+		return false;
+	}
+	const char *third_str = (*args)[3];
+	if (!third_str) {
+		return false;
+	}
+	const char *fourth_str = (*args)[4];
+	if (!fourth_str) {
+		return false;
+	}
+	const char *fifth_str = (*args)[5];
+	if (!fifth_str) {
+		return false;
+	}
+	const char *sixth_str = (*args)[6];
+	if (!sixth_str) {
+		return false;
+	}
+
+	char *end_first, *end_second, *end_third, *end_fourth, *end_fifth, *end_sixth;
+	long first = strtol(first_str, &end_first, 10);
+	long second = strtol(second_str, &end_second, 10);
+	long third = strtol(third_str, &end_third, 10);
+	long fourth = strtol(fourth_str, &end_fourth, 10);
+	long fifth = strtol(fifth_str, &end_fifth, 10);
+	long sixth = strtol(sixth_str, &end_sixth, 10);
+
+	if (*end_first != '\0' || *end_second != '\0' || *end_third != '\0'
+	    || *end_fourth != '\0' || *end_fifth != '\0' || *end_sixth != '\0') {
+		return false;
+	}
+	if (first < 0 || first > 255) {
+		return false;
+	}
+	if (second < 0 || second > 255) {
+		return false;
+	}
+	if (third < 0 || third > 255) {
+		return false;
+	}
+	if (fourth < 0 || fourth > 255) {
+		return false;
+	}
+	if (fifth < 0 || fifth > 255) {
+		return false;
+	}
+	if (sixth < 0 || sixth > 255) {
+		return false;
+	}
+
+	rs->vopts.low_color.r = first;
+	rs->vopts.low_color.g = second;
+	rs->vopts.low_color.b = third;
+
+	rs->vopts.high_color.r = fourth;
+	rs->vopts.high_color.g = fifth;
+	rs->vopts.high_color.b = sixth;
+
+	*args += 7;
+	return true;
+}
+
 bool parse_coupling_constant(const char ***args, struct run_state *rs)
 {
 	/* parse one real number between 0.0 and 1.0 */
@@ -271,6 +409,50 @@ bool parse_neuron_count(const char ***args, struct run_state *rs)
 	}
 	
 	rs->simopts.neuron_count = (uint)neuron_count;
+	*args += 2;
+	return true;	
+}
+
+bool parse_grid_width(const char ***args, struct run_state *rs)
+{
+	/* parse one positive integer */
+	const char *grid_width_str = (*args)[1];
+	if (!grid_width_str) {
+		return false;
+	}
+	char *end;
+	long grid_width = strtol(grid_width_str, &end, 10);
+	if (*end != '\0') {
+		return false;
+	}
+
+	if (grid_width < 0) {
+		return false;
+	}
+	
+	rs->simopts.grid_width = (uint)grid_width;
+	*args += 2;
+	return true;	
+}
+
+bool parse_grid_height(const char ***args, struct run_state *rs)
+{
+	/* parse one positive integer */
+	const char *grid_height_str = (*args)[1];
+	if (!grid_height_str) {
+		return false;
+	}
+	char *end;
+	long grid_height = strtol(grid_height_str, &end, 10);
+	if (*end != '\0') {
+		return false;
+	}
+
+	if (grid_height < 0) {
+		return false;
+	}
+	
+	rs->simopts.grid_height = (uint)grid_height;
 	*args += 2;
 	return true;	
 }
@@ -528,6 +710,29 @@ bool parse_print_voltage_matrix(const char ***args, struct run_state *rs) {
 	return true;
 }
 
+bool parse_print_raster_plot(const char ***args, struct run_state *rs) {
+	/* parse one boolean */
+	const char *print_raster_plot_str = (*args)[1];
+	if (!print_raster_plot_str) {
+		return false;
+	}
+
+	bool print_raster_plot;
+	if (!strcmp(print_raster_plot_str, "true")) {
+		print_raster_plot = true;
+	}
+	else if (!strcmp(print_raster_plot_str, "false")) {
+		print_raster_plot = false;
+	}
+	else {
+		return false;
+	}
+
+	rs->popts.print_raster_plot = print_raster_plot;
+	*args += 2;
+	return true;
+}
+
 struct command_line_option {
 	const char *option;
 	const char *desc;
@@ -587,6 +792,16 @@ const struct command_line_option command_line_options[] = {
 		.parser = &parse_neuron_count,
 		.desc = neuron_count_desc
 	},
+	(struct command_line_option) {
+		.option = "--grid-width",
+		.parser = &parse_grid_width,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--grid-height",
+		.parser = &parse_grid_height,
+		.desc = "TODO: Add description."
+	},	
 	(struct command_line_option) {
 		.option = "--time-step",
 		.parser = &parse_time_step,
@@ -652,6 +867,21 @@ const struct command_line_option command_line_options[] = {
 		.parser = &parse_print_voltage_matrix,
 		.desc = print_voltage_matrix_desc
 	},
+	(struct command_line_option) {
+		.option = "--print-raster-plot",
+		.parser = &parse_print_raster_plot,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--visualize-matrix-range",
+		.parser = &parse_visualize_matrix_range,
+		.desc = "TODO: Add description."
+	},
+	(struct command_line_option) {
+		.option = "--visualize-color-range",
+		.parser = &parse_visualize_color_range,
+		.desc = "TODO: Add description."
+	},
 	(struct command_line_option) {0}
 };
 
@@ -662,6 +892,8 @@ static const struct run_state default_run_state = (const struct run_state) {
 	.simopts.random_value_interval.highest = 0.0,
 	.simopts.random_value_interval.lowest = 0.0,
 	.simopts.neuron_count = 225,
+	.simopts.grid_width = 15,
+	.simopts.grid_height = 15,
 	.simopts.time_step = 0.1,
 	.simopts.parameter_callback = &huber_braun_parameter_callback_single_center,
 	.simopts.coupling_callback = &coupling_callback_lattice,
@@ -672,8 +904,17 @@ static const struct run_state default_run_state = (const struct run_state) {
 	.popts.output_dir = "output",
 	.popts.print_neurons = false,
 	.popts.print_voltage_matrix = true,
+	.popts.print_raster_plot = false,
 	.vopts.screen_width = 800,
 	.vopts.screen_height = 800,
+	.vopts.low_matrix_value = -80.0,
+	.vopts.high_matrix_value = 30.0,
+	.vopts.low_color.r = 122,
+	.vopts.low_color.g = 31,
+	.vopts.low_color.b = 110,
+	.vopts.high_color.r = 184,
+	.vopts.high_color.g = 172,
+	.vopts.high_color.b = 9,
 	.vopts.fontpath = "res/Monoid-Regular-NoCalt.ttf"
 };
 
@@ -732,11 +973,6 @@ int main(int argc, const char **argv)
 	return 1;
 }
 
-const double low_voltage = -80.0;
-const double high_voltage = 20.0;
-const char *low_voltage_text = "-80.0";
-const char *high_voltage_text = "20.0";
-
 void clerp(double input, double low_input, double high_input, SDL_Color *low_color, SDL_Color *high_color, SDL_Color *out_color)
 {
 	out_color->r = math_utils_lerp(input, low_input, high_input, low_color->r, high_color->r);
@@ -747,10 +983,11 @@ void clerp(double input, double low_input, double high_input, SDL_Color *low_col
 
 void draw_color_map_cell(SDL_Renderer *renderer,
 			 SDL_Color *low_color, SDL_Color *high_color,
+			 double low_input, double high_input,
 			 uint x, uint y, uint width, uint height, double value)
 {
 	SDL_Color c;
-	clerp(value, low_voltage, high_voltage, low_color, high_color, &c);
+	clerp(value, low_input, high_input, low_color, high_color, &c);
 
 	SDL_Rect rect = (SDL_Rect) {
 		.x = x,
@@ -765,10 +1002,15 @@ void draw_color_map_cell(SDL_Renderer *renderer,
 
 void draw_legend(SDL_Renderer *renderer, TTF_Font *font,
 		 SDL_Color *low_color, SDL_Color *high_color,
+		 double low_value, double high_value,
 		 uint x, uint y, uint width, uint height)
 {
-	SDL_Surface *low_text_surface = TTF_RenderText_Solid(font, low_voltage_text, (SDL_Color){80, 80, 80, 255});
-	SDL_Surface *high_text_surface = TTF_RenderText_Solid(font, high_voltage_text, (SDL_Color){80, 80, 80, 255});
+	static char low_value_text[64];
+	static char high_value_text[64];
+	snprintf(low_value_text, 64, "%.3f", low_value);
+	snprintf(high_value_text, 64, "%.3f", high_value);
+	SDL_Surface *low_text_surface = TTF_RenderText_Solid(font, low_value_text, (SDL_Color){80, 80, 80, 255});
+	SDL_Surface *high_text_surface = TTF_RenderText_Solid(font, high_value_text, (SDL_Color){80, 80, 80, 255});
 	uint low_width = low_text_surface->w;
 	uint low_height = low_text_surface->h;
 	uint high_width = high_text_surface->w;
@@ -855,12 +1097,14 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 		neuron_config_coupling_constant_set(simopts->coupling_constant);
 	}
 
-	uint matrix_width = sqrt(simopts->neuron_count);
-	uint matrix_height = sqrt(simopts->neuron_count);
+	uint matrix_width = simopts->grid_width;
+	uint matrix_height = simopts->grid_height;
 
 	double sim_time = 0.0;
 
 	dynamical_system ds = dynamical_system_create(simopts->neuron_count,
+						      simopts->grid_width,
+						      simopts->grid_height,
 						      simopts->model->number_of_variables,
 						      simopts->parameter_callback,
 						      simopts->coupling_callback,
@@ -873,14 +1117,14 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 	uint start_time_millis, end_time_millis;
 
 	SDL_Color low_color;
-	low_color.r = 122;
-	low_color.g = 31;
-	low_color.b = 110;
+	low_color.r = vopts->low_color.r;
+	low_color.g = vopts->low_color.g;
+	low_color.b = vopts->low_color.b;
 
 	SDL_Color high_color;
-	high_color.r = 184;
-	high_color.g = 172;
-	high_color.b = 9;
+	high_color.r = vopts->high_color.r;
+	high_color.g = vopts->high_color.g;
+	high_color.b = vopts->high_color.b;
 
 	uint header_height = 100;
 	
@@ -928,7 +1172,7 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 			for (uint col = 0; col < matrix_width; col++) {
 				double cell_width = vopts->screen_width / (double)matrix_width;
 				double cell_height = (vopts->screen_height - header_height) / (double)matrix_height;
-				draw_color_map_cell(renderer, &low_color, &high_color,
+				draw_color_map_cell(renderer, &low_color, &high_color, vopts->low_matrix_value, vopts->high_matrix_value,
 						    ceill(col * cell_width),
 						    ceill(header_height + row * cell_height),
 						    ceill(cell_width),
@@ -953,7 +1197,9 @@ int visualize_main(struct simulation_options *simopts, struct visual_options *vo
 		text_rect.h = message_height;
 		
 		SDL_RenderCopy(renderer, text_texture, NULL, &text_rect);
-		draw_legend(renderer, font, &low_color, &high_color, 0, message_height, 800, 50);
+		draw_legend(renderer, font,
+			    &low_color, &high_color, vopts->low_matrix_value, vopts->high_matrix_value,
+			    0, message_height, 800, 50);
 		
 		SDL_RenderPresent(renderer);
 
@@ -993,16 +1239,28 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 	}
 
 	file_table fs;
-	if (popts->print_neurons && popts->print_voltage_matrix) {
+	if (popts->print_neurons && popts->print_voltage_matrix && popts->print_raster_plot) {
 		fs = file_table_create(popts->output_dir,
-						  simopts->neuron_count,
-						  1, "voltage_matrix.dat");
+				       simopts->neuron_count,
+				       2, "voltage_matrix.dat", "raster_plot.dat");
+	}
+	else if (popts->print_neurons && popts->print_voltage_matrix) {
+		fs = file_table_create(popts->output_dir, simopts->neuron_count, 1, "voltage_matrix.dat");
+	}
+	else if (popts->print_neurons && popts->print_raster_plot) {
+		fs = file_table_create(popts->output_dir, simopts->neuron_count, 1, "raster_plot.dat");
+	}
+	else if (popts->print_raster_plot && popts->print_voltage_matrix) {
+		fs = file_table_create(popts->output_dir, 0, 2, "voltage_matrix.dat", "raster_plot.dat");
 	}
 	else if (popts->print_neurons) {
 		fs = file_table_create(popts->output_dir, simopts->neuron_count, 0);
 	}
 	else if (popts->print_voltage_matrix) {
 		fs = file_table_create(popts->output_dir, 0, 1, "voltage_matrix.dat");
+	}
+	else if (popts->print_raster_plot) {
+		fs = file_table_create(popts->output_dir, 0, 1, "raster_plot.dat");
 	}
 	else {
 		puts("Nothing to do.");
@@ -1015,6 +1273,8 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 	}
 
 	dynamical_system ds = dynamical_system_create(simopts->neuron_count,
+						      simopts->grid_width,
+						      simopts->grid_height,
 						      simopts->model->number_of_variables,
 						      simopts->parameter_callback,
 						      simopts->coupling_callback,
@@ -1022,12 +1282,17 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 						      simopts->model->derivatives);
 						      
 						      
-	uint grid_width = sqrt(simopts->neuron_count);
-	uint grid_height = sqrt(simopts->neuron_count);
+	uint grid_width = simopts->grid_width;
+	uint grid_height = simopts->grid_height;
 
 	timer timer = timer_begin();
 
-	double sim_time;	
+	double sim_time;
+	double *previous_voltages = malloc((sizeof *previous_voltages) * simopts->neuron_count);
+	for (uint i = 0; i < simopts->neuron_count; i++) {
+		previous_voltages[i] = dynamical_system_get_value(ds, i, 0);
+	}
+	
 	while ((sim_time = dynamical_system_get_time(ds)) < popts->final_time) {
 		timer_print(timer, progress_print_interval,
 				    "Progress: %3d%%, Time elapsed: %9.2fs\n",
@@ -1035,14 +1300,11 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 				    timer_total_get(timer));
 		if (math_utils_near_every(sim_time, simopts->time_step, popts->print_time)) {
 			if (popts->print_neurons) {
-				for (uint i = 0; i < dynamical_system_get_system_size(ds); i++) {	
+				for (uint i = 0; i < dynamical_system_get_system_size(ds); i++) {
 					file_table_index_print(fs, i, "%.10e %.10e %.10e %.10e %.10e\n",
 							       dynamical_system_get_time(ds),
 							       dynamical_system_get_value(ds, i, 0),
-							       dynamical_system_get_value(ds, i, 1),
-							       dynamical_system_get_value(ds, i, 2),
-							       dynamical_system_get_value(ds, i, 3));
-
+							       dynamical_system_get_value(ds, i, 1));
 				}
 			}
 			if (popts->print_voltage_matrix) {
@@ -1057,13 +1319,23 @@ int print_data_main(struct simulation_options *simopts, struct print_options *po
 				}
 				file_table_special_print(fs, "voltage_matrix.dat", "\n");
 			}
+			if (popts->print_raster_plot) {
+				for (uint i = 0; i < simopts->neuron_count; i++) {
+					double current_voltage = dynamical_system_get_value(ds, i, 0);
+					if (current_voltage > 0.0 && previous_voltages[i] < 0.0) {
+						file_table_special_print(fs, "raster_plot.dat", "%f\t%d\n", sim_time, i);
+					}
+					previous_voltages[i] = current_voltage;
+				}
+			}
 		}
 		
 		math_utils_rk4_integrate(ds, simopts->time_step);
 	}
 
 	timer_end(&timer, "Total elapsed time: %.2fs\n", timer_total_get(timer));
-	
+
+	free(previous_voltages);
 	dynamical_system_destroy(&ds);
 	file_table_destroy(&fs);
 	temp_free();

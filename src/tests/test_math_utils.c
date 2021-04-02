@@ -87,7 +87,7 @@ static double free_fall_analytical_solution_x(double t, double initial_x, double
 bool test_math_utils_rk4_integrate(void)
 {
 	double step = 0.005;
-	const double tol = 1;
+	const double tol = 10;
 	double (*derivatives[]) (dynamical_system, uint) = { &free_fall_dv_wrt_dt, &free_fall_dx_wrt_dt };
 
 	const double first_initial_v = 0.0;
